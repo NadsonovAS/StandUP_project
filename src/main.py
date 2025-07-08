@@ -13,25 +13,25 @@ logging.basicConfig(
 )
 
 
-def check_and_save_to_json(path: str, arg_for_func, func):
+def check_and_save_to_json(file_path, arg_for_func, func):
     """
     Сохранение json объекта
     """
     # Проверка наличия файла
-    if path.exists():
+    if file_path.exists():
         logging.info("Файл ранее обработан")
-        with open(path, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             json_file = json.load(f)
     # Иначе сохранить в файл
     else:
         json_file = func(arg_for_func)
 
-        with open(path, "w", encoding="utf-8") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(json_file, f, ensure_ascii=False, indent=4)
     return json_file
 
 
-def process_video(video_url: str):
+def process_video(video_url):
     """
     Полный пайплайн обработки видео: скачивание, транскрибация, форматирование.
     """
@@ -39,6 +39,10 @@ def process_video(video_url: str):
     # 1. Скачивание аудио
     logging.info(f"Скачивание аудио по URL: {video_url}")
     audio_path = youtube_downloader.download_audio(video_url)
+
+    if audio_path is None:
+        logging.error("Не удалось скачать аудио. Проверьте URL и повторите попытку.")
+        return
 
     # 2. Транскрибация
     logging.info("Запуск транскрибации...")

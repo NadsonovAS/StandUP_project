@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 
-def download_audio(video_url: str) -> Path | None:
+def download_audio(video_url):
     """
     Скачивает аудио из видео по URL. Если файл уже существует, возвращает путь к нему.
 
@@ -41,4 +41,4 @@ def download_audio(video_url: str) -> Path | None:
 
     except Exception as e:
         logging.error(f"Ошибка при скачивании аудио для {video_url}: {e}")
-        return None
+        return

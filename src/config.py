@@ -18,6 +18,9 @@ for directory in [DATA_DIR, AUDIO_DIR, LLM_BLOCK_DIR, TRANSCRIPTS_DIR, LAUGHTER_
 # Загрузка ключа API из переменных окружения
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
+if not GEMINI_API_KEY:
+    print("Предупреждение: переменная окружения GEMINI_API_KEY не установлена.")
+
 # Объявление моделей для LLM и транскрибации
 WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
 GEMINI_MODEL = "gemini-2.5-flash"
@@ -40,6 +43,3 @@ YDL_OPTS = {
     "cookiesfrombrowser": ("safari", None, None, None),
     "quiet": True,
 }
-
-if not GEMINI_API_KEY:
-    print("Предупреждение: переменная окружения GEMINI_API_KEY не установлена.")

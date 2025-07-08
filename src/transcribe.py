@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 
 import mlx_whisper
 
@@ -10,7 +9,7 @@ logging.basicConfig(
 )
 
 
-def transcribe_audio(audio_file_path: Path) -> str | None:
+def transcribe_audio(audio_file_path) -> str | None:
     """
     Транскрибирует аудиофайл с использованием mlx-whisper.
 
@@ -30,18 +29,18 @@ def transcribe_audio(audio_file_path: Path) -> str | None:
             "text": result["text"],
             "segments": [
                 {
-                    "id": segment["id"],
-                    "start": segment["start"],
-                    "end": segment["end"],
-                    "text": segment["text"],
+                    "id": segment[0],
+                    "start": segment[1],
+                    "end": segment[2],
+                    "text": segment[3],
                 }
                 for segment in result.get("segments", [])
             ],
         }
 
-        if filtered_result:
+        if filtered_result and filtered_result.get("text"):
             logging.info("Транскрибация успешно завершена.")
-            return filtered_result
+            return filtered_result["text"]
         else:
             logging.warning("Транскрибация не успешна")
             return None
