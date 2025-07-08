@@ -10,9 +10,9 @@ logging.basicConfig(
 )
 
 
-def format_text_with_llm(raw_text):
+def format_text_with_llm(raw_text) -> str | None:
     """
-    Форматирует текст с помощью Gemini, разбивая его на темы.
+    Форматирует текст с помощью Gemini, разбивая его на темы на русском языке.
 
     Args:
         raw_text: Исходный транскрибированный текст в json формате.
@@ -64,8 +64,9 @@ def format_text_with_llm(raw_text):
             },
         )
 
-        if response and response.text:
-            llm_response_json_path = json.loads(response.text)
+        llm_response_json_path = json.loads(response.text)
+
+        if response:
             logging.info("Получен ответ от LLM.")
             return llm_response_json_path
         else:

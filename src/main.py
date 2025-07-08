@@ -3,10 +3,11 @@ import json
 import logging
 
 import config
+
+# from laughter_segmentation import inference
 import llm
 import transcribe
 import youtube_downloader
-from laughter_segmentation import inference
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -58,23 +59,23 @@ def process_video(video_url):
 
     check_and_save_to_json(llm_response_path, transcribe_json, llm.format_text_with_llm)
 
-    # 4. Детекция смеха
-    logging.info("Запуск детекции смеха...")
-    laughter_json_path = config.LAUGHTER_DIR / f"{audio_path.stem}.json"
-    model_path = (
-        config.PROJECT_ROOT
-        / "src"
-        / "laughter_segmentation"
-        / "models"
-        / "model.safetensors"
-    )
-    inference.main(
-        audio_path=f"{audio_path}",
-        output_dir=laughter_json_path,  # !!!модуль создает папку,убрать создание папки!!!
-        model_path=model_path,
-    )
+    # # 4. Детекция смеха
+    # logging.info("Запуск детекции смеха...")
+    # laughter_json_path = config.LAUGHTER_DIR / f"{audio_path.stem}.json"
+    # model_path = (
+    #     config.PROJECT_ROOT
+    #     / "src"
+    #     / "laughter_segmentation"
+    #     / "models"
+    #     / "model.safetensors"
+    # )
+    # inference.main(
+    #     audio_path=f"{audio_path}",
+    #     output_dir=laughter_json_path,  # !!!модуль создает папку,убрать создание папки!!!
+    #     model_path=model_path,
+    # )
 
-    logging.info("Обработка URL завершена")
+    # logging.info("Обработка URL завершена")
 
 
 if __name__ == "__main__":

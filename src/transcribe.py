@@ -29,18 +29,18 @@ def transcribe_audio(audio_file_path) -> str | None:
             "text": result["text"],
             "segments": [
                 {
-                    "id": segment[0],
-                    "start": segment[1],
-                    "end": segment[2],
-                    "text": segment[3],
+                    "id": segment["id"],
+                    "start": segment["start"],
+                    "end": segment["end"],
+                    "text": segment["text"],
                 }
                 for segment in result.get("segments", [])
             ],
         }
 
-        if filtered_result and filtered_result.get("text"):
+        if filtered_result:
             logging.info("Транскрибация успешно завершена.")
-            return filtered_result["text"]
+            return filtered_result
         else:
             logging.warning("Транскрибация не успешна")
             return None
