@@ -43,3 +43,8 @@ YDL_OPTS = {
     "cookiesfrombrowser": ("safari", None, None, None),
     "quiet": True,
 }
+
+# Настройки детекции смеха
+WINDOW_DURATION_SECONDS = "1"  # min - 0.5
+PREFERRED_TIMESCALE = "240"  # дробная часть секунды 1 / preferred_timescale
+CONFIDENCE_THRESHOLD = "0.3"  # определение нижней границы чувствительности смеха

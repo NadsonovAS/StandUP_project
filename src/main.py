@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import subprocess
 
 import config
 
@@ -45,6 +46,8 @@ def process_video(video_url):
         logging.error("Не удалось скачать аудио. Проверьте URL и повторите попытку.")
         return
 
+    logging.info("Скачивание аудио завершено")
+
     # 2. Транскрибация
     logging.info("Запуск транскрибации...")
     transcribe_text_path = config.TRANSCRIPTS_DIR / f"{audio_path.stem}.json"
@@ -59,23 +62,21 @@ def process_video(video_url):
 
     check_and_save_to_json(llm_response_path, transcribe_json, llm.format_text_with_llm)
 
-    # # 4. Детекция смеха
-    # logging.info("Запуск детекции смеха...")
-    # laughter_json_path = config.LAUGHTER_DIR / f"{audio_path.stem}.json"
-    # model_path = (
-    #     config.PROJECT_ROOT
-    #     / "src"
-    #     / "laughter_segmentation"
-    #     / "models"
-    #     / "model.safetensors"
-    # )
-    # inference.main(
-    #     audio_path=f"{audio_path}",
-    #     output_dir=laughter_json_path,  # !!!модуль создает папку,убрать создание папки!!!
-    #     model_path=model_path,
-    # )
+    # 4. Детекция смеха
+    logging.info("Запуск детекции смеха...")
+    laughter_json_path = config.LAUGHTER_DIR / f"{audio_path.stem}.json"
+    subprocess.run(
+        [
+            "./src/SoundFileClassifier_app",  # путь до бинарника
+            audio_path,
+            laughter_json_path,
+            config.WINDOW_DURATION_SECONDS,
+            config.PREFERRED_TIMESCALE,
+            config.CONFIDENCE_THRESHOLD,
+        ]
+    )
 
-    # logging.info("Обработка URL завершена")
+    logging.info("Обработка URL завершена")
 
 
 if __name__ == "__main__":
