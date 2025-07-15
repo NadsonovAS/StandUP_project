@@ -19,6 +19,7 @@ def transcribe_audio(audio_file_path) -> str | None:
     Returns:
         Транскрибированный текст или None в случае ошибки.
     """
+    logging.info("Запуск транскрибации...")
 
     try:
         result = mlx_whisper.transcribe(

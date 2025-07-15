@@ -4,8 +4,6 @@ import logging
 import subprocess
 
 import config
-
-# from laughter_segmentation import inference
 import llm
 import transcribe
 import youtube_downloader
@@ -21,7 +19,7 @@ def check_and_save_to_json(file_path, arg_for_func, func):
     """
     # Проверка наличия файла
     if file_path.exists():
-        logging.info("Файл ранее обработан")
+        logging.info(f"Файл ранее обработан - {func.__name__}")
         with open(file_path, "r", encoding="utf-8") as f:
             json_file = json.load(f)
     # Иначе сохранить в файл
@@ -39,17 +37,9 @@ def process_video(video_url):
     """
 
     # 1. Скачивание аудио
-    logging.info(f"Скачивание аудио по URL: {video_url}")
     audio_path = youtube_downloader.download_audio(video_url)
 
-    if audio_path is None:
-        logging.error("Не удалось скачать аудио. Проверьте URL и повторите попытку.")
-        return
-
-    logging.info("Скачивание аудио завершено")
-
     # 2. Транскрибация
-    logging.info("Запуск транскрибации...")
     transcribe_text_path = config.TRANSCRIPTS_DIR / f"{audio_path.stem}.json"
 
     transcribe_json = check_and_save_to_json(
@@ -57,7 +47,6 @@ def process_video(video_url):
     )
 
     # 3. Форматирование с помощью LLM
-    logging.info("Запуск форматирования текста с помощью LLM...")
     llm_response_path = config.LLM_BLOCK_DIR / f"{audio_path.stem}.json"
 
     check_and_save_to_json(llm_response_path, transcribe_json, llm.format_text_with_llm)
@@ -67,16 +56,17 @@ def process_video(video_url):
     laughter_json_path = config.LAUGHTER_DIR / f"{audio_path.stem}.json"
     subprocess.run(
         [
-            "./src/SoundFileClassifier_app",  # путь до бинарника
+            "./src/SoundFileClassifier_app",
             audio_path,
             laughter_json_path,
             config.WINDOW_DURATION_SECONDS,
             config.PREFERRED_TIMESCALE,
             config.CONFIDENCE_THRESHOLD,
+            config.OVERLAP_FACTOR,
         ]
     )
 
-    logging.info("Обработка URL завершена")
+    logging.info("Детекция смеха завершена")
 
 
 if __name__ == "__main__":

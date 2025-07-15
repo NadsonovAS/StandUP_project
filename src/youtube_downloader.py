@@ -20,6 +20,8 @@ def download_audio(video_url):
     Returns:
         Path к скачанному аудиофайлу или None в случае ошибки.
     """
+    logging.info(f"Скачивание аудио по URL: {video_url}")
+
     try:
         with yt_dlp.YoutubeDL(config.YDL_OPTS) as ydl:
             # 1. Получаем информацию о видео, не скачивая его
@@ -36,6 +38,8 @@ def download_audio(video_url):
 
             # 4. Если файла нет, запускаем полное скачивание и обработку
             ydl.extract_info(video_url, download=True)
+
+            logging.info("Скачивание аудио завершено")
 
             return audio_path
 

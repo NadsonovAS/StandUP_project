@@ -45,6 +45,7 @@ YDL_OPTS = {
 }
 
 # Настройки детекции смеха
-WINDOW_DURATION_SECONDS = "1"  # min - 0.5
-PREFERRED_TIMESCALE = "240"  # дробная часть секунды 1 / preferred_timescale
-CONFIDENCE_THRESHOLD = "0.3"  # определение нижней границы чувствительности смеха
+WINDOW_DURATION_SECONDS = "1"  # 0.5 - 15
+PREFERRED_TIMESCALE = "600"  # WINDOW_DURATION_SECONDS / PREFERRED_TIMESCALE
+CONFIDENCE_THRESHOLD = "0.5"  # 0 - 1
+OVERLAP_FACTOR = "0.9"  # 0 - 1
