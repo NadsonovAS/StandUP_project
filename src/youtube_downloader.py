@@ -5,10 +5,6 @@ import yt_dlp
 
 import config
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 
 def download_audio(video_url):
     """
@@ -18,7 +14,7 @@ def download_audio(video_url):
         video_url: URL видео на YouTube.
 
     Returns:
-        Path к скачанному аудиофайлу или None в случае ошибки.
+        Path к скачанному аудиофайлу.
     """
     logging.info(f"Скачивание аудио по URL: {video_url}")
 
@@ -27,9 +23,9 @@ def download_audio(video_url):
             # 1. Получаем информацию о видео, не скачивая его
             info_dict = ydl.extract_info(video_url, download=False)
 
-            # 2. Определяем ожидаемый путь к файлу .wav
+            # 2. Определяем ожидаемый путь к файлу
             filename = ydl.prepare_filename(info_dict)
-            audio_path = Path(filename).with_suffix(".wav")
+            audio_path = Path(filename).with_suffix(".m4a")
 
             # 3. Проверяем, существует ли файл
             if audio_path.exists():

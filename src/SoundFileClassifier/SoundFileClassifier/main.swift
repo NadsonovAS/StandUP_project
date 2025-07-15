@@ -43,7 +43,7 @@ enum ArgumentError: Error {
     var localizedDescription: String {
         switch self {
         case .invalidCount:
-            return "Usage: SoundFileClassifier <input_audio_path.wav> <output_json_path.json> <window_duration_seconds> <preferred_timescale> <confidence_threshold> <overlap_factor>"
+            return "Usage: SoundFileClassifier <input_audio_path.mp4> <output_json_path.json> <window_duration_seconds> <preferred_timescale> <confidence_threshold> <overlap_factor>"
         case .invalidFormat:
             return "Ошибка: не удалось преобразовать аргументы."
         }

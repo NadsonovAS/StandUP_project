@@ -5,20 +5,16 @@ from google import genai
 
 import config
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 
 def format_text_with_llm(raw_text) -> str | None:
     """
-    Форматирует текст с помощью Gemini, разбивая его на темы на русском языке.
+    Форматирует текст с помощью Gemini, разбивая его на темы.
 
     Args:
         raw_text: Исходный транскрибированный текст в json формате.
 
     Returns:
-        Отформатированный текст или None в случае ошибки.
+        Отформатированный текст.
     """
     logging.info("Запуск форматирования текста с помощью LLM...")
 
@@ -26,7 +22,6 @@ def format_text_with_llm(raw_text) -> str | None:
     str_transcribe_json = str(raw_text)
 
     try:
-        # Используем модель и настройки из конфига
         client = genai.Client(api_key=config.GEMINI_API_KEY)
 
         prompt = f"""
@@ -47,13 +42,14 @@ def format_text_with_llm(raw_text) -> str | None:
         - "start_sec" = время окончания предыдущей темы (или 0 для первой);
         - "end_sec" = максимальная отметка `end` у фрагментов текущей темы.
         4. Обеспечить непрерывность: начало каждой темы совпадает с концом предыдущей.
+        5. Перепроверь себя, что тема не должна быть слишком короткой, например длиться 1-10 секунд
 
         Вернуть **только** чистый JSON-объект без комментариев, обёрток или форматирования:
         ```
         {{{{
-        "политика":   {{"start_sec": 0,   "end_sec": 15}},
-        "музыка":     {{"start_sec": 15,  "end_sec": 67}},
-        "психология": {{"start_sec": 67,  "end_sec": 210}}
+        "политика":   {{"start_sec": 0,   "end_sec": 67}},
+        "музыка":     {{"start_sec": 67,  "end_sec": 102}},
+        "психология": {{"start_sec": 102,  "end_sec": 210}}
         }}}}
         ```
 

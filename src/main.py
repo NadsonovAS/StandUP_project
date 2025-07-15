@@ -33,7 +33,7 @@ def check_and_save_to_json(file_path, arg_for_func, func):
 
 def process_video(video_url):
     """
-    Полный пайплайн обработки видео: скачивание, транскрибация, форматирование.
+    Полный пайплайн обработки видео: скачивание, транскрибация, форматирование, детекция смеха.
     """
 
     # 1. Скачивание аудио
@@ -70,10 +70,10 @@ def process_video(video_url):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Обработка видео с YouTube.")
+    parser = argparse.ArgumentParser(description="URL ссылка видео youtube.com")
     parser.add_argument(
         "argument",
-        help="URL видео.",
+        help="URL видео",
     )
     args = parser.parse_args()
     process_video(args.argument)

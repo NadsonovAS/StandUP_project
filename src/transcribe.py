@@ -4,10 +4,6 @@ import mlx_whisper
 
 import config
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 
 def transcribe_audio(audio_file_path) -> str | None:
     """
@@ -17,7 +13,7 @@ def transcribe_audio(audio_file_path) -> str | None:
         audio_file_path: Путь к аудиофайлу.
 
     Returns:
-        Транскрибированный текст или None в случае ошибки.
+        Транскрибированный текст.
     """
     logging.info("Запуск транскрибации...")
 
