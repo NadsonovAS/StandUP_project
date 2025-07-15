@@ -38,6 +38,8 @@ def process_video(video_url):
 
     # 1. Скачивание аудио
     audio_path = youtube_downloader.download_audio(video_url)
+    if not audio_path:
+        return
 
     # 2. Транскрибация
     transcribe_text_path = config.TRANSCRIPTS_DIR / f"{audio_path.stem}.json"
@@ -54,26 +56,44 @@ def process_video(video_url):
     # 4. Детекция смеха
     logging.info("Запуск детекции смеха...")
     laughter_json_path = config.LAUGHTER_DIR / f"{audio_path.stem}.json"
-    subprocess.run(
-        [
-            "./src/SoundFileClassifier_app",
-            audio_path,
-            laughter_json_path,
-            config.WINDOW_DURATION_SECONDS,
-            config.PREFERRED_TIMESCALE,
-            config.CONFIDENCE_THRESHOLD,
-            config.OVERLAP_FACTOR,
-        ]
-    )
+    if laughter_json_path.exists():
+        logging.info("Файл ранее обработан детектором смеха")
+        return
+    else:
+        subprocess.run(
+            [
+                "./src/SoundFileClassifier_app",
+                str(audio_path),
+                str(laughter_json_path),
+                config.WINDOW_DURATION_SECONDS,
+                config.PREFERRED_TIMESCALE,
+                config.CONFIDENCE_THRESHOLD,
+                config.OVERLAP_FACTOR,
+            ]
+        )
 
-    logging.info("Детекция смеха завершена")
+        logging.info(f"Детекция смеха для {video_url} завершена")
+
+
+def main(url):
+    """
+    Обрабатывает URL, который может быть как отдельным видео, так и плейлистом.
+    """
+    if "playlist" in url:
+        video_urls = youtube_downloader.get_playlist_urls(url)
+        for video_url in video_urls:
+            process_video(video_url)
+    else:
+        process_video(url)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="URL ссылка видео youtube.com")
+    parser = argparse.ArgumentParser(
+        description="URL ссылка на видео или плейлист youtube.com"
+    )
     parser.add_argument(
         "argument",
-        help="URL видео",
+        help="URL видео или плейлиста",
     )
     args = parser.parse_args()
-    process_video(args.argument)
+    main(args.argument)
