@@ -8,12 +8,6 @@ import config
 def transcribe_audio(audio_file_path) -> str | None:
     """
     Транскрибирует аудиофайл с использованием mlx-whisper.
-
-    Args:
-        audio_file_path: Путь к аудиофайлу.
-
-    Returns:
-        Транскрибированный текст.
     """
     logging.info("Запуск транскрибации...")
 

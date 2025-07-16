@@ -34,8 +34,8 @@ YDL_OPTS = {
     "quiet": True,
 }
 
-# Настройки детекции смеха
+# Настройки детекции смеха для sound analysis (SoundFileClassifier_app)
 WINDOW_DURATION_SECONDS = "1"  # 0.5 - 15
 PREFERRED_TIMESCALE = "600"  # WINDOW_DURATION_SECONDS / PREFERRED_TIMESCALE
 CONFIDENCE_THRESHOLD = "0.5"  # 0 - 1
-OVERLAP_FACTOR = "0.9"  # 0 - 1
+OVERLAP_FACTOR = "0.9"  # 0 - 0.99

@@ -9,12 +9,6 @@ import config
 def get_playlist_urls(playlist_url):
     """
     Получает список URL-адресов видео из плейлиста YouTube.
-
-    Args:
-        playlist_url: URL плейлиста на YouTube.
-
-    Returns:
-        Список URL-адресов видео в плейлисте.
     """
     logging.info(f"Получение URL-адресов из плейлиста: {playlist_url}")
     urls = []
@@ -34,12 +28,6 @@ def get_playlist_urls(playlist_url):
 def download_audio(video_url):
     """
     Скачивает аудио из видео по URL. Если файл уже существует, возвращает путь к нему.
-
-    Args:
-        video_url: URL видео на YouTube.
-
-    Returns:
-        Path к скачанному аудиофайлу.
     """
     logging.info(f"Скачивание аудио по URL: {video_url}")
 

@@ -1,7 +1,7 @@
 [project]
 name = "standup-project"
 version = "0.1.0"
-description = "Add your description here"
+description = "Pipeline выгрузки аудио из плейстов youtube с последующей транскрибацией, получением списка тем с временными метками, анализ аудио на предмет смех с получением временных меток."
 readme = "README.md"
 requires-python = ">=3.13.5"
 dependencies = [
