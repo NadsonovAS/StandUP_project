@@ -19,13 +19,15 @@ def get_playlist_urls(playlist_url):
     logging.info(f"Получение URL-адресов из плейлиста: {playlist_url}")
     urls = []
     try:
-        with yt_dlp.YoutubeDL({'extract_flat': True, 'quiet': True}) as ydl:
+        with yt_dlp.YoutubeDL({"extract_flat": True, "quiet": True}) as ydl:
             info_dict = ydl.extract_info(playlist_url, download=False)
-            if 'entries' in info_dict:
-                urls = [entry['url'] for entry in info_dict['entries']]
+            if "entries" in info_dict:
+                urls = [entry["url"] for entry in info_dict["entries"]]
                 logging.info(f"Найдено {len(urls)} видео в плейлисте.")
     except Exception as e:
-        logging.error(f"Ошибка при получении URL-адресов из плейлиста {playlist_url}: {e}")
+        logging.error(
+            f"Ошибка при получении URL-адресов из плейлиста {playlist_url}: {e}"
+        )
     return urls
 
 
