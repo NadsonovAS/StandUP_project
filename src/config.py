@@ -15,15 +15,24 @@ LAUGHTER_DIR = DATA_DIR / "laughter_segmentation"
 for directory in [DATA_DIR, AUDIO_DIR, LLM_BLOCK_DIR, TRANSCRIPTS_DIR, LAUGHTER_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
-# Загрузка ключа API из переменных окружения
+# Настройки для подключения к БД
+CONN_PARAMS = {
+    "dbname": "standup",
+    "user": "standup",
+    "password": "standup",
+    "host": "localhost",
+    "port": "5432",
+}
+
+# Загрузка ключей API из переменных окружения
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
-    print("Предупреждение: переменная окружения GEMINI_API_KEY не установлена.")
+    print("Предупреждение: переменная окружения не установлена.")
 
 # Объявление моделей для LLM и транскрибации
 WHISPER_MODEL = "mlx-community/whisper-large-v3-turbo"
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL_FLASH = "gemini-2.5-flash"
 
 # Настройки для yt-dlp
 YDL_OPTS = {
@@ -31,6 +40,12 @@ YDL_OPTS = {
     "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
     "outtmpl": str(AUDIO_DIR / "%(title)s.%(ext)s"),
     "cookiesfrombrowser": ("safari", None, None, None),
+    "quiet": True,
+}
+
+YDL_OPTS_PLAYLIST = {
+    "skip_download": True,
+    "extract_flat": "in_playlist",  # Получить только базовую информацию о плейлисте
     "quiet": True,
 }
 

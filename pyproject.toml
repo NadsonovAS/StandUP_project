@@ -1,13 +1,16 @@
 [project]
 name = "standup-project"
 version = "0.1.0"
-description = "Pipeline выгрузки аудио из плейстов youtube с последующей транскрибацией, получением списка тем с временными метками, анализ аудио на предмет смех с получением временных меток."
+description = "Pipeline выгрузки аудио из плейстов youtube с последующей транскрибацией, получением списка тем с временными метками, анализ аудио на предмет смеха с получением временных меток."
 readme = "README.md"
-requires-python = ">=3.13.5"
+requires-python = ">=3.13"
 dependencies = [
     "google-genai>=1.24.0",
+    "jsonschema>=4.24.0",
     "jupyter>=1.1.1",
+    "mlx>=0.26.5",
     "mlx-whisper>=0.4.2",
     "pandas>=2.3.1",
-    "yt-dlp>=2025.6.30",
+    "psycopg>=3.2.9",
+    "yt-dlp",
 ]

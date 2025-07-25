@@ -7,7 +7,6 @@ typealias LaughterResults = [String: Double]
 // MARK: - Парсинг аргументов
 struct Arguments {
     let inputAudioPath: String
-    let outputJsonPath: String
     let windowDurationSeconds: Double
     let preferredTimescale: Int32
     let confidenceThreshold: Double
@@ -15,17 +14,16 @@ struct Arguments {
     
     init() throws {
         let args = CommandLine.arguments
-        guard args.count == 7 else {
+        guard args.count == 6 else {
             throw ArgumentError.invalidCount
         }
         
         inputAudioPath = args[1]
-        outputJsonPath = args[2]
         
-        guard let windowDuration = Double(args[3]),
-              let timescale = Int32(args[4]),
-              let threshold = Double(args[5]),
-              let overlap = Double(args[6]) else {
+        guard let windowDuration = Double(args[2]),
+              let timescale = Int32(args[3]),
+              let threshold = Double(args[4]),
+              let overlap = Double(args[5]) else {
             throw ArgumentError.invalidFormat
         }
         
@@ -43,7 +41,7 @@ enum ArgumentError: Error {
     var localizedDescription: String {
         switch self {
         case .invalidCount:
-            return "Usage: SoundFileClassifier <input_audio_path.mp4> <output_json_path.json> <window_duration_seconds> <preferred_timescale> <confidence_threshold> <overlap_factor>"
+            return "Usage: SoundFileClassifier <input_audio_path.mp4> <window_duration_seconds> <preferred_timescale> <confidence_threshold> <overlap_factor>"
         case .invalidFormat:
             return "Ошибка: не удалось преобразовать аргументы."
         }
@@ -85,7 +83,6 @@ func analyzeLaughter() throws {
     let args = try Arguments()
     
     let audioFileURL = URL(fileURLWithPath: args.inputAudioPath)
-    let outputURL = URL(fileURLWithPath: args.outputJsonPath)
     
     // Создаем запрос для анализа
     let classifySoundRequest = try SNClassifySoundRequest(classifierIdentifier: .version1)
@@ -112,12 +109,12 @@ func analyzeLaughter() throws {
     let results = laughterDetector.getResults()
     
     // Сохраняем результаты
-    try saveResults(results, to: outputURL)
+    try saveResults(results)
     
 }
 
 // MARK: - Сохранение результатов
-func saveResults(_ results: LaughterResults, to url: URL) throws {
+func saveResults(_ results: LaughterResults) throws {
     // Сортируем результаты по времени (численно) перед сериализацией
     let sortedResults = results.sorted { (first, second) in
         let firstTime = Double(first.key) ?? 0
@@ -141,7 +138,7 @@ func saveResults(_ results: LaughterResults, to url: URL) throws {
     }
     jsonString += "}"
     
-    try jsonString.write(to: url, atomically: true, encoding: .utf8)
+    print(jsonString)
 }
 
 // MARK: - Точка входа

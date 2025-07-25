@@ -1,0 +1,11 @@
+services:
+  postgresql:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: standup
+      POSTGRES_USER: standup
+      POSTGRES_PASSWORD: standup
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d
