@@ -1,0 +1,27 @@
+# Python-generated files
+.ruff_cache/
+__pycache__/
+wheels/
+build/
+dist/
+.DS_Store
+*.TextGrid
+*.py[oc]
+*.egg-info
+
+# Virtual environments
+.env
+.venv
+
+
+# Расширения файлов
+*.json
+*.m4a
+*.lock
+*.ipynb
+*.part
+*.drawio
+*.bkp
+
+# IDE/project settings
+.vscode/
