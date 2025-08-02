@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 
 from pydantic import ValidationError
 
@@ -15,188 +16,119 @@ logging.basicConfig(
 )
 
 
+### ВНЕДРИТЬ ЛОГГИНГ try/except полностью !!!
+
+
 def process_video(youtube_url):
     """
-    Полный пайплайн обработки видео с использованием Pydantic моделей и upsert функции
+    Пайплайн обработки видео.
+
+    Загрузка:
+    - метаданных плейлиста
+    - метаданных видео
+    - аудио
+    - транскрибация
+    - извлечение тем из транскрипта
+    - !!! - ТРЕБУЕТСЯ: добавление классификации темы с помощью Gemini !!!
+    - выделения тега "смех" из аудио с временными метками
     """
 
-    logging.info("Запуск обработки плейлиста")
-
     # 1. Загрузка метаданных плейлиста
-    try:
-        logging.info("Загрузка метаданных плейлиста с youtube")
-        playlist_info = youtube_downloader.yt_playlist_extract_info(youtube_url)
-        logging.info(
-            f"Метаданные загружены, размер плейлиста - {len(playlist_info)} видео"
-        )
+    playlist_info = youtube_downloader.yt_playlist_extract_info(youtube_url)
+    time.sleep(3)
 
-        if not playlist_info:
-            logging.warning("Плейлист пуст или не удалось получить данные")
-            return
+    # Внесение метаданных из плейлиста о новых видео в Postgres
+    database.new_video_from_playlist_info_to_db(playlist_info, conn, cur)
 
-    except Exception as e:
-        logging.error(f"Ошибка при получении метаданных от youtube: {e}")
-        return
+    # Обрабатываем существующие и новые видео в одном цикле
+    for video_obj in playlist_info:
+        logging.info("====================================================")
+        logging.info(f"Запуск процесса обработки - {video_obj.video_title}")
 
-    # 2. Пайплайн обработки данных
-    logging.info("Запуск процесса обработки каждого видео в плейлисте")
+        try:
+            row_from_db = database.get_row_from_db(video_obj, cur)
 
-    try:
-        # Подключение к БД
-        conn = database.get_db_connection()
-        cur = conn.cursor()
-
-        # Получение всех video_id из плейлиста
-        all_video_ids = [row.video_id for row in playlist_info]
-
-        # Получение существующих видео из БД
-        cur.execute(
-            "SELECT * FROM standup_raw.process_video WHERE video_id = ANY(%s)",
-            (all_video_ids,),
-        )
-        existing_video_ids = set(row[4] for row in cur.fetchall())
-
-        # Список новых видео, которых нет в плейлисте в БД
-        new_video = set(all_video_ids) - existing_video_ids
-
-        if new_video:
-            new_video_to_db = [v for v in playlist_info if v.video_id in new_video]
-
-            logging.info(f"Новых видео - {len(new_video_to_db)}")
-            # Добавление новых видео в БД
-            for video_obj in new_video_to_db:
-                try:
-                    cur.execute(
-                        """
-                        INSERT INTO standup_raw.process_video (channel_id, channel_name, playlist_id, playlist_title, video_id, video_title, video_url)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            video_obj.channel_id,
-                            video_obj.channel_name,
-                            video_obj.playlist_id,
-                            video_obj.playlist_title,
-                            video_obj.video_id,
-                            video_obj.video_title,
-                            video_obj.video_url,
-                        ),
+            # Если строка имеется в БД, то проверяем на пустые значения
+            if row_from_db:
+                # 2.1 Заполнение video_meta_json
+                if row_from_db.video_meta_json is None:
+                    row_from_db.video_meta_json = (
+                        youtube_downloader.yt_video_extract_info(row_from_db.video_url)
                     )
-                    conn.commit()
-                    logging.info(f"Добавлено новое видео в БД: {video_obj.video_title}")
-                except Exception as e:
-                    logging.error(
-                        f"Ошибка при добавлении нового видео {video_obj.video_id}: {e}"
+                    database.obj_to_db(
+                        conn,
+                        cur,
+                        column="video_meta_json",
+                        value=row_from_db.video_meta_json,
+                        where=row_from_db.video_id,
+                        json_type=True,
                     )
-        # Обрабатываем существующие и новые видео в одном цикле
 
-        for video_obj in playlist_info:
-            logging.info(f"Запуск процесса обработки - {video_obj.video_title}")
+                time.sleep(3)
 
-            try:
-                row_from_db = database.check_row_in_db(video_obj, cur)
+                #  2.2 Загрузка аудиофайла
+                # ДОРАБОТАТЬ ЛОГИКУ СОХРАНЕНИЯ и ПОЛУЧЕНИЯ
 
-                # Если строка имеется в БД, то проверяем на пустые значения
-                if row_from_db:
-                    # 2.1 Заполнение video_meta_json
-                    if row_from_db.video_meta_json is None:
-                        try:
-                            row_from_db.video_meta_json = (
-                                youtube_downloader.yt_video_extract_info(
-                                    row_from_db.video_url
-                                )
-                            )
-                            column = "video_meta_json"
-                            value = row_from_db.video_meta_json
-                            where = row_from_db.video_id
-                            database.json_to_db(column, value, where, conn, cur)
-                        except Exception as e:
-                            logging.error(
-                                f"Ошибка при загрузке метаданных видео {row_from_db.video_id}: {e}"
-                            )
+                row_from_db.audio_path = youtube_downloader.download_audio_toS3(
+                    row_from_db.video_url, row_from_db.video_title
+                )
+                database.obj_to_db(
+                    conn,
+                    cur,
+                    column="audio_path",
+                    value=str(row_from_db.audio_path),
+                    where=row_from_db.video_id,
+                )
 
-                    #  2.2 Загрузка аудиофайла
-                    # ДОРАБОТАТЬ ЛОГИКУ СОХРАНЕНИЯ и ПОЛУЧЕНИЯ
-                    try:
-                        row_from_db.audio_path = youtube_downloader.download_audio(
-                            row_from_db.video_url, row_from_db.video_title
-                        )
-                        column = "audio_path"
-                        value = str(row_from_db.audio_path)
-                        where = row_from_db.video_id
-                        database.obj_to_db(column, value, where, conn, cur)
-                    except Exception as e:
-                        logging.error(
-                            f"Ошибка при загрузке аудио {row_from_db.video_id}: {e}"
-                        )
-                        continue
+                #  2.3 Заполнение transcribe_json
+                if row_from_db.transcribe_json is None:
+                    row_from_db.transcribe_json = transcribe.transcribe_audio(
+                        row_from_db.audio_path
+                    )
+                    database.obj_to_db(
+                        conn,
+                        cur,
+                        column="transcribe_json",
+                        value=row_from_db.transcribe_json,
+                        where=row_from_db.video_id,
+                        json_type=True,
+                    )
 
-                    #  2.3 Заполнение transcribe_json
-                    if row_from_db.transcribe_json is None:
-                        try:
-                            row_from_db.transcribe_json = transcribe.transcribe_audio(
-                                row_from_db.audio_path
-                            )
-                            column = "transcribe_json"
-                            value = row_from_db.transcribe_json
-                            where = row_from_db.video_id
-                            database.json_to_db(column, value, where, conn, cur)
-                        except Exception as e:
-                            logging.error(
-                                f"Ошибка при транскрипции аудио {row_from_db.video_id}: {e}"
-                            )
+                #  2.4 Заполнение llm_chapter_json
+                if row_from_db.llm_chapter_json is None:
+                    tsv_text = llm_chapter.format_json_to_tsv(
+                        row_from_db.transcribe_json
+                    )
+                    row_from_db.llm_chapter_json = llm_chapter.format_text_with_llm(
+                        tsv_text
+                    )
+                    database.obj_to_db(
+                        conn,
+                        cur,
+                        column="llm_chapter_json",
+                        value=row_from_db.llm_chapter_json,
+                        where=row_from_db.video_id,
+                        json_type=True,
+                    )
 
-                    #  2.4 Заполнение llm_chapter_json
-                    if row_from_db.llm_chapter_json is None:
-                        try:
-                            tsv_text = llm_chapter.format_json_to_tsv(
-                                row_from_db.transcribe_json
-                            )
-                            row_from_db.llm_chapter_json = (
-                                llm_chapter.format_text_with_llm(tsv_text)
-                            )
-                            column = "llm_chapter_json"
-                            value = row_from_db.llm_chapter_json
-                            where = row_from_db.video_id
-                            database.json_to_db(column, value, where, conn, cur)
-                        except Exception as e:
-                            logging.error(
-                                f"Ошибка при обработке LLM {row_from_db.video_id}: {e}"
-                            )
+                #  2.5 Заполнение sound_classifier
+                if row_from_db.sound_classifier is None:
+                    row_from_db.sound_classifier = (
+                        sound_classifier.get_sound_classifier(row_from_db.audio_path)
+                    )
 
-                    #  2.5 Заполнение sound_classifier
-                    if row_from_db.sound_classifier is None:
-                        try:
-                            row_from_db.sound_classifier = (
-                                sound_classifier.get_sound_classifier(
-                                    row_from_db.audio_path
-                                )
-                            )
+                    database.obj_to_db(
+                        conn,
+                        cur,
+                        column="sound_classifier",
+                        value=row_from_db.sound_classifier,
+                        where=row_from_db.video_id,
+                        json_type=True,
+                    )
 
-                            column = "sound_classifier"
-                            value = row_from_db.sound_classifier
-                            where = row_from_db.video_id
-                            database.json_to_db(column, value, where, conn, cur)
-
-                        except Exception as e:
-                            logging.error(
-                                f"Ошибка при работе модуля детекции смеха {row_from_db.video_id}: {e}"
-                            )
-
-                logging.info("==========================================")
-
-            except Exception as e:
-                logging.error(f"Ошибка при сохранении видео {video_obj.video_id}: {e}")
-                continue
-
-    except Exception as e:
-        logging.error(f"Ошибка при подключении к БД: {e}")
-
-    finally:
-        # Закрытие сессии БД
-        if cur:
-            cur.close()
-        if conn:
-            conn.close()
+        except Exception as e:
+            logging.error(f"Ошибка при сохранении видео {video_obj.video_id}: {e}")
+            continue
 
 
 if __name__ == "__main__":
@@ -208,9 +140,20 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
         youtube_url = config.VideoURLModel(url=args.argument)
+
+        # Подключение к БД
+        conn = database.get_db_connection()
+        cur = conn.cursor()
+
         process_video(str(youtube_url.url))
 
     except ValidationError as e:
         logging.error(f"Ошибка валидации URL: {e}")
     except KeyboardInterrupt:
         logging.warning("Операция прервана пользователем (KeyboardInterrupt)")
+    finally:
+        # Закрытие сессии БД
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()

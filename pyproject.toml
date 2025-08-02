@@ -3,17 +3,18 @@ name = "standup-project"
 version = "0.1.0"
 description = "Pipeline выгрузки аудио из плейстов youtube с последующей транскрибацией, получением списка тем с временными метками, анализ аудио на предмет смеха с получением временных меток."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13.5"
 dependencies = [
-    "jupyter",
-    "mlx",
-    "mlx-metal",
-    "mlx-whisper",
-    "pandas",
-    "psycopg",
-    "pydantic",
-    "pydantic-settings",
-    "yt-dlp",
-    "minio",
+    "jupyter>=1.1.1",
+    "lmstudio>=1.4.1",
+    "minio>=7.2.16",
+    "mlx>=0.27.1",
+    "mlx-metal>=0.27.1",
+    "mlx-whisper>=0.4.2",
     "openai>=1.98.0",
+    "pandas>=2.3.1",
+    "psycopg>=3.2.9",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "yt-dlp>=2025.7.21",
 ]

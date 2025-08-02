@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     MINIO_ROOT_PASSWORD: str
     MINIO_DOMAIN: str
     MINIO_AUDIO_BUCKET: str = "standup-project"  # имя бакета в MinIO
-    MINIO_AUDIO_PREFIX: str = "data/audio"  # префикс (папка) внутри бакета
+    MINIO_AUDIO_PATH: str = "data/audio"  # префикс (папка) внутри бакета
 
     # API Keys
     GEMINI_API_KEY: str
