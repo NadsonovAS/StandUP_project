@@ -34,7 +34,13 @@ def yt_video_extract_info(video_url):
         video_info = ydl.extract_info(video_url, download=False)
 
         # Фильтрация по ключам
-        list_of_key = ["duration", "like_count", "view_count", "comment_count"]
+        list_of_key = [
+            "duration",
+            "like_count",
+            "view_count",
+            "comment_count",
+            "upload_date",
+        ]
         filtered_info = {
             key: video_info[key] for key in list_of_key if key in video_info
         }
