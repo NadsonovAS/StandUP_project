@@ -1,24 +1,26 @@
 import argparse
 import logging
+import os
 import time
 
+from minio import Minio
 from pydantic import ValidationError
 
 import config
 import database
-import llm_chapter
+import llm
 import sound_classifier
 import transcribe
 import youtube_downloader
+from config import settings
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
-### ВНЕДРИТЬ ЛОГГИНГ try/except полностью !!!
-
-
+# TODO Доработка процессинга
+# Требуется: уйти от монолитной функции
 def process_video(youtube_url):
     """
     Пайплайн обработки видео.
@@ -35,10 +37,10 @@ def process_video(youtube_url):
 
     # 1. Загрузка метаданных плейлиста
     playlist_info = youtube_downloader.yt_playlist_extract_info(youtube_url)
-    time.sleep(3)
+    time.sleep(1)
 
     # Внесение метаданных из плейлиста о новых видео в Postgres
-    database.new_video_from_playlist_info_to_db(playlist_info, conn, cur)
+    database.new_video_from_playlist_info_to_db(conn, cur, playlist_info)
 
     # Обрабатываем существующие и новые видео в одном цикле
     for video_obj in playlist_info:
@@ -64,64 +66,59 @@ def process_video(youtube_url):
                         json_type=True,
                     )
 
-                time.sleep(3)
+                time.sleep(1)
 
                 #  2.2 Загрузка аудиофайла
-                # ДОРАБОТАТЬ ЛОГИКУ СОХРАНЕНИЯ и ПОЛУЧЕНИЯ
-
-                row_from_db.audio_path = youtube_downloader.download_audio_toS3(
-                    row_from_db.video_url, row_from_db.video_title
-                )
-                database.obj_to_db(
-                    conn,
-                    cur,
-                    column="audio_path",
-                    value=str(row_from_db.audio_path),
-                    where=row_from_db.video_id,
-                )
-
-                #  2.3 Заполнение transcribe_json
-                if row_from_db.transcribe_json is None:
-                    row_from_db.transcribe_json = transcribe.transcribe_audio(
-                        row_from_db.audio_path
-                    )
-                    database.obj_to_db(
-                        conn,
-                        cur,
-                        column="transcribe_json",
-                        value=row_from_db.transcribe_json,
-                        where=row_from_db.video_id,
-                        json_type=True,
+                if (
+                    row_from_db.transcribe_json or row_from_db.sound_classifier_json
+                ) is None:
+                    row_from_db.audio_path = youtube_downloader.download_audio(
+                        minio_client, row_from_db.video_url, row_from_db.video_title
                     )
 
-                #  2.4 Заполнение llm_chapter_json
+                    #  2.3 Выполнение transcribe_audio
+                    if row_from_db.transcribe_json is None:
+                        row_from_db.transcribe_json = transcribe.transcribe_audio(
+                            row_from_db.audio_path
+                        )
+                        database.obj_to_db(
+                            conn,
+                            cur,
+                            column="transcribe_json",
+                            value=row_from_db.transcribe_json,
+                            where=row_from_db.video_id,
+                            json_type=True,
+                        )
+
+                    #  2.4 Выполнение get_sound_classifier
+                    if row_from_db.sound_classifier_json is None:
+                        row_from_db.sound_classifier_json = (
+                            sound_classifier.get_sound_classifier(
+                                row_from_db.audio_path
+                            )
+                        )
+
+                        database.obj_to_db(
+                            conn,
+                            cur,
+                            column="sound_classifier_json",
+                            value=row_from_db.sound_classifier_json,
+                            where=row_from_db.video_id,
+                            json_type=True,
+                        )
+
+                    # Удаление локальной версии аудио файла
+                    os.remove(row_from_db.audio_path)
+
+                #  2.5 Выполнение get_chapter_with_llm
                 if row_from_db.llm_chapter_json is None:
-                    tsv_text = llm_chapter.format_json_to_tsv(
-                        row_from_db.transcribe_json
-                    )
-                    row_from_db.llm_chapter_json = llm_chapter.format_text_with_llm(
-                        tsv_text
-                    )
+                    tsv_text = llm.format_json_to_tsv(row_from_db.transcribe_json)
+                    row_from_db.llm_chapter_json = llm.get_chapter_with_llm(tsv_text)
                     database.obj_to_db(
                         conn,
                         cur,
                         column="llm_chapter_json",
                         value=row_from_db.llm_chapter_json,
-                        where=row_from_db.video_id,
-                        json_type=True,
-                    )
-
-                #  2.5 Заполнение sound_classifier
-                if row_from_db.sound_classifier is None:
-                    row_from_db.sound_classifier = (
-                        sound_classifier.get_sound_classifier(row_from_db.audio_path)
-                    )
-
-                    database.obj_to_db(
-                        conn,
-                        cur,
-                        column="sound_classifier",
-                        value=row_from_db.sound_classifier,
                         where=row_from_db.video_id,
                         json_type=True,
                     )
@@ -139,12 +136,22 @@ if __name__ == "__main__":
         parser.add_argument("argument", help="URL видео или плейлиста")
         args = parser.parse_args()
 
+        # Валидация URL ссылки
         youtube_url = config.VideoURLModel(url=args.argument)
 
         # Подключение к БД
         conn = database.get_db_connection()
         cur = conn.cursor()
 
+        # Подключение к MinIO
+        minio_client = Minio(
+            settings.MINIO_DOMAIN,
+            access_key=settings.MINIO_ROOT_USER,
+            secret_key=settings.MINIO_ROOT_PASSWORD,
+            secure=False,
+        )
+
+        # Запуск пайплайна
         process_video(str(youtube_url.url))
 
     except ValidationError as e:

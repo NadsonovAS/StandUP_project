@@ -36,6 +36,18 @@ class Settings(BaseSettings):
     WHISPER_MODEL: str = "mlx-community/whisper-large-v3-turbo"
     GEMINI_MODEL_FLASH: str = "gemini-2.5-flash"
 
+    # MLX-Whisper params
+    TRANSCRIBE_PARAMS: dict = {
+        "temperature": 0,
+        "compression_ratio_threshold": 2.0,
+        "logprob_threshold": -0.5,
+        "no_speech_threshold": 0.2,
+        "condition_on_previous_text": False,
+        "hallucination_silence_threshold": 2.0,
+        "initial_prompt": "Стендап комедия и юмористическое шоу. Ведущие: комики, актеры. Разговорная речь с жаргонизмами, игрой слов, каламбурами. Реакция аудитории: смех, аплодисменты, возгласы.",
+        "language": "ru",
+    }
+
     # yt-dlp settings
     YDL_OPTS: dict = {
         "format": "m4a/bestaudio/best",

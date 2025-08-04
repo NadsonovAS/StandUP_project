@@ -61,7 +61,7 @@ def obj_to_db(conn, cur, column, value, where, json_type=None):
 
 
 @try_except_with_log()
-def new_video_from_playlist_info_to_db(playlist_info, conn, cur):
+def new_video_from_playlist_info_to_db(conn, cur, playlist_info):
     """
     Добавление всех новых видео из загруженных метаданных плейлиста.
     """
@@ -101,4 +101,3 @@ def new_video_from_playlist_info_to_db(playlist_info, conn, cur):
                 ),
             )
             conn.commit()
-            logging.info(f"Добавлено новое видео в БД: {video_obj.video_title}")

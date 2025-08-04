@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.13.5"
 dependencies = [
     "jupyter>=1.1.1",
-    "lmstudio>=1.4.1",
     "minio>=7.2.16",
     "mlx>=0.27.1",
     "mlx-metal>=0.27.1",
