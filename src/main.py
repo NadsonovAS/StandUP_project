@@ -44,11 +44,10 @@ def process_video(youtube_url):
 
     # Обрабатываем существующие и новые видео в одном цикле
     for video_obj in playlist_info:
-        logging.info("====================================================")
-        logging.info(f"Запуск процесса обработки - {video_obj.video_title}")
-
         try:
             row_from_db = database.get_row_from_db(video_obj, cur)
+            logging.info("====================================================")
+            logging.info(f"Запуск процесса обработки - {video_obj.video_title}")
 
             # Если строка имеется в БД, то проверяем на пустые значения
             if row_from_db:
@@ -121,6 +120,22 @@ def process_video(youtube_url):
                         value=row_from_db.llm_chapter_json,
                         where=row_from_db.video_id,
                         json_type=True,
+                    )
+
+                #  2.6 Выставление статуса - finish, если получены все значения
+                if (
+                    row_from_db.video_meta_json
+                    and row_from_db.transcribe_json
+                    and row_from_db.llm_chapter_json
+                    and row_from_db.sound_classifier_json
+                ) is not None:
+                    row_from_db.process_status = "finished"
+                    database.obj_to_db(
+                        conn,
+                        cur,
+                        column="process_status",
+                        value=row_from_db.process_status,
+                        where=row_from_db.video_id,
                     )
 
         except Exception as e:

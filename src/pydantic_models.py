@@ -12,10 +12,11 @@ class ProcessVideo(BaseModel):
     video_title: Optional[str] = None
     video_url: Optional[str] = None
     video_meta_json: Optional[Dict[str, Any]] = None
-    transcribe_json: Optional[Dict[str, Any]] = None
+    transcribe_json: Optional[List[Dict]] = None
     llm_chapter_json: Optional[Dict[str, Any]] = None
     sound_classifier_json: Optional[Dict[str, Any]] = None
     audio_path: Optional[str] = None
+    process_status: Optional[str] = None
 
 
 class LLMresponse(BaseModel):

@@ -29,7 +29,7 @@ def get_row_from_db(video_obj, cur):
     Проверка наличия данных в Postgres
     """
     cur.execute(
-        "SELECT * FROM standup_raw.process_video WHERE video_id = %s",
+        "SELECT * FROM standup_raw.process_video WHERE video_id = %s and process_status is NULL",
         (video_obj.video_id,),
     )
     row = cur.fetchone()

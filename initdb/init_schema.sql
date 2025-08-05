@@ -14,5 +14,6 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     transcribe_json JSONB,
     llm_chapter_json JSONB,
     sound_classifier_json JSONB,
-    llm_chapter_classifier_json JSONB
+    llm_chapter_classifier_json JSONB,
+    process_status TEXT,
 );
