@@ -42,9 +42,12 @@ class Settings(BaseSettings):
         "compression_ratio_threshold": 2.0,
         "logprob_threshold": -0.5,
         "no_speech_threshold": 0.2,
-        "condition_on_previous_text": False,
         "hallucination_silence_threshold": 2.0,
-        "initial_prompt": "Стендап комедия и юмористическое шоу. Ведущие: комики, актеры. Разговорная речь с жаргонизмами, игрой слов, каламбурами. Реакция аудитории: смех, аплодисменты, возгласы.",
+        "initial_prompt": "StandUP show",
+        "language": "ru",
+    }
+    RE_TRANSCRIBE_PARAMS: dict = {
+        "condition_on_previous_text": False,
         "language": "ru",
     }
 
@@ -63,10 +66,10 @@ class Settings(BaseSettings):
     }
 
     # Sound analysis settings
-    WINDOW_DURATION_SECONDS: str = "1"
-    PREFERRED_TIMESCALE: str = "600"
-    CONFIDENCE_THRESHOLD: str = "0.5"
-    OVERLAP_FACTOR: str = "0.9"
+    WINDOW_DURATION_SECONDS: int = 1
+    PREFERRED_TIMESCALE: int = 600
+    CONFIDENCE_THRESHOLD: float = 0.5
+    OVERLAP_FACTOR: float = 0.8
 
     class Config:
         env_file = Path(__file__).parent.parent / ".env"

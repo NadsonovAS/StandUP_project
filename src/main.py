@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 import time
 
 from minio import Minio
@@ -11,6 +10,7 @@ import database
 import llm
 import sound_classifier
 import transcribe
+import utils
 import youtube_downloader
 from config import settings
 
@@ -37,20 +37,21 @@ def process_video(youtube_url):
 
     # 1. Загрузка метаданных плейлиста
     playlist_info = youtube_downloader.yt_playlist_extract_info(youtube_url)
-    time.sleep(1)
+    time.sleep(3)
 
     # Внесение метаданных из плейлиста о новых видео в Postgres
     database.new_video_from_playlist_info_to_db(conn, cur, playlist_info)
 
     # Обрабатываем существующие и новые видео в одном цикле
-    for video_obj in playlist_info:
+    for video in playlist_info:
         try:
-            row_from_db = database.get_row_from_db(video_obj, cur)
-            logging.info("====================================================")
-            logging.info(f"Запуск процесса обработки - {video_obj.video_title}")
+            row_from_db = database.get_row_from_db(video, cur)
 
             # Если строка имеется в БД, то проверяем на пустые значения
             if row_from_db:
+                logging.info("====================================================")
+                logging.info(f"Запуск процесса обработки - {video.video_title}")
+
                 # 2.1 Заполнение video_meta_json
                 if row_from_db.video_meta_json is None:
                     row_from_db.video_meta_json = (
@@ -64,13 +65,13 @@ def process_video(youtube_url):
                         where=row_from_db.video_id,
                         json_type=True,
                     )
-
-                time.sleep(1)
+                    time.sleep(2)
 
                 #  2.2 Загрузка аудиофайла
                 if (
-                    row_from_db.transcribe_json or row_from_db.sound_classifier_json
-                ) is None:
+                    row_from_db.transcribe_json is None
+                    or row_from_db.sound_classifier_json is None
+                ):
                     row_from_db.audio_path = youtube_downloader.download_audio(
                         minio_client, row_from_db.video_url, row_from_db.video_title
                     )
@@ -80,6 +81,18 @@ def process_video(youtube_url):
                         row_from_db.transcribe_json = transcribe.transcribe_audio(
                             row_from_db.audio_path
                         )
+                        hallucination_list = transcribe.check_hallucination(
+                            row_from_db.transcribe_json
+                        )
+                        if hallucination_list:
+                            row_from_db.transcribe_json = (
+                                transcribe.re_transcribe_audio(
+                                    row_from_db.audio_path,
+                                    row_from_db.transcribe_json,
+                                    hallucination_list,
+                                )
+                            )
+
                         database.obj_to_db(
                             conn,
                             cur,
@@ -107,7 +120,7 @@ def process_video(youtube_url):
                         )
 
                     # Удаление локальной версии аудио файла
-                    os.remove(row_from_db.audio_path)
+                    utils.remove_audio_cache()
 
                 #  2.5 Выполнение get_chapter_with_llm
                 if row_from_db.llm_chapter_json is None:
@@ -122,24 +135,53 @@ def process_video(youtube_url):
                         json_type=True,
                     )
 
-                #  2.6 Выставление статуса - finish, если получены все значения
-                if (
-                    row_from_db.video_meta_json
-                    and row_from_db.transcribe_json
-                    and row_from_db.llm_chapter_json
-                    and row_from_db.sound_classifier_json
-                ) is not None:
-                    row_from_db.process_status = "finished"
-                    database.obj_to_db(
-                        conn,
-                        cur,
-                        column="process_status",
-                        value=row_from_db.process_status,
-                        where=row_from_db.video_id,
-                    )
+                if row_from_db.llm_chapter_json:
+                    #  2.6 Выполнение get_summarize_with_llm
+                    if row_from_db.llm_summarize_json is None:
+                        row_from_db.llm_summarize_json = llm.get_summarize_with_llm(
+                            row_from_db.transcribe_json, row_from_db.llm_chapter_json
+                        )
+                        database.obj_to_db(
+                            conn,
+                            cur,
+                            column="llm_summarize_json",
+                            value=row_from_db.llm_summarize_json,
+                            where=row_from_db.video_id,
+                            json_type=True,
+                        )
+
+                    #  2.7 Выполнение get_classifier_with_llm
+                    if row_from_db.llm_classifier_json is None:
+                        row_from_db.llm_classifier_json = llm.get_classifier_with_llm(
+                            row_from_db.llm_summarize_json
+                        )
+                        database.obj_to_db(
+                            conn,
+                            cur,
+                            column="llm_classifier_json",
+                            value=row_from_db.llm_classifier_json,
+                            where=row_from_db.video_id,
+                            json_type=True,
+                        )
+
+                    #  2.8 Выставление статуса - finished, если получены все значения
+                    if (
+                        row_from_db.video_meta_json
+                        and row_from_db.transcribe_json
+                        and row_from_db.llm_chapter_json
+                        and row_from_db.sound_classifier_json
+                    ) is not None:
+                        row_from_db.process_status = "finished"
+                        database.obj_to_db(
+                            conn,
+                            cur,
+                            column="process_status",
+                            value=row_from_db.process_status,
+                            where=row_from_db.video_id,
+                        )
 
         except Exception as e:
-            logging.error(f"Ошибка при сохранении видео {video_obj.video_id}: {e}")
+            logging.error(f"Ошибка при сохранении видео {video.video_id}: {e}")
             continue
 
 

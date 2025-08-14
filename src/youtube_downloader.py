@@ -100,16 +100,18 @@ def download_audio(minio_client, video_url, video_title):
     """
 
     local_audio_path = settings.AUDIO_DIR / f"{video_title}.m4a"
-    s3_key = f"{settings.MINIO_AUDIO_PATH}/{video_title}.m4a"
+    object_name = f"{settings.MINIO_AUDIO_PATH}/{video_title}.m4a"
 
     # Проверяем, существует ли файл в MinIO
     try:
-        minio_client.stat_object(settings.MINIO_AUDIO_BUCKET, s3_key)
+        minio_client.stat_object(settings.MINIO_AUDIO_BUCKET, object_name)
 
         # Если файла нет локально, скачиваем из MinIO
         if not local_audio_path.exists():
             minio_client.fget_object(
-                settings.MINIO_AUDIO_BUCKET, s3_key, str(local_audio_path)
+                settings.MINIO_AUDIO_BUCKET,
+                object_name,
+                str(local_audio_path),
             )
 
         return local_audio_path
@@ -128,6 +130,8 @@ def download_audio(minio_client, video_url, video_title):
         ydl.download([video_url])
 
     # Загружаем файл в MinIO
-    minio_client.fput_object(settings.MINIO_AUDIO_BUCKET, s3_key, str(local_audio_path))
+    minio_client.fput_object(
+        settings.MINIO_AUDIO_BUCKET, object_name, str(local_audio_path)
+    )
 
     return local_audio_path

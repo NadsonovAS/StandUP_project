@@ -1,5 +1,8 @@
 import logging
+import traceback
 from functools import wraps
+
+from config import settings
 
 
 def try_except_with_log(message=None):
@@ -16,7 +19,20 @@ def try_except_with_log(message=None):
                 return func(*args, **kwargs)
             except Exception as e:
                 logging.error(f"Ошибка - {func.__name__}: {e}")
+                traceback.print_exc()
 
         return wrapper
 
     return decorator
+
+
+def remove_audio_cache():
+    """
+    Очистка всех файлов в папке data/audio
+    """
+
+    folder = settings.AUDIO_DIR
+
+    for file in folder.iterdir():
+        if file.is_file():
+            file.unlink()

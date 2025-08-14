@@ -14,14 +14,30 @@ class ProcessVideo(BaseModel):
     video_meta_json: Optional[Dict[str, Any]] = None
     transcribe_json: Optional[List[Dict]] = None
     llm_chapter_json: Optional[Dict[str, Any]] = None
+    llm_summarize_json: Optional[Dict[str, Any]] = None
+    llm_classifier_json: Optional[List[str]] = None
     sound_classifier_json: Optional[Dict[str, Any]] = None
     audio_path: Optional[str] = None
     process_status: Optional[str] = None
 
 
-class LLMresponse(BaseModel):
-    theme: List[str] = Field(..., description="Список тем")
-    id: List[int] = Field(..., description="Список id")
+class LlmResponseTheme(BaseModel):
+    id: List[int] = Field(
+        ...,
+        description="array of numbers (IDs of the starting positions for each theme)",
+    )
+    theme: List[str] = Field(..., description="array of strings (themes in Russian)")
 
-    class Config:
-        openai_strict = True
+
+class LlmResponseSummarize(BaseModel):
+    summarize: List[str] = Field(
+        ..., description="array of strings (summarize in English)"
+    )
+
+
+class LlmResponseClassifier(BaseModel):
+    main_category: str = Field(..., description="Exact main category name from YAML.")
+    subcategory: str = Field(..., description="Exact subcategory name from YAML.")
+    reason: str = Field(
+        ..., description="Short explanation of why this category was chosen."
+    )

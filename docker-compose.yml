@@ -11,6 +11,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
+      - postgres_data:/var/lib/postgresql/data
       - ./initdb:/docker-entrypoint-initdb.d
 
   minio:
@@ -49,3 +50,4 @@ services:
 
 volumes:
   minio_data:
+  postgres_data:
