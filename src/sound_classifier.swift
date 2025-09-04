@@ -1,10 +1,10 @@
 import Foundation
 import SoundAnalysis
 
-// Используем словарь для более компактного JSON формата
+/// Dictionary for compact JSON format: timestamp -> confidence
 typealias LaughterResults = [String: Double]
 
-// MARK: - Парсинг аргументов
+// MARK: - Argument Parsing
 struct Arguments {
     let inputAudioPath: String
     let windowDurationSeconds: Double
@@ -20,10 +20,12 @@ struct Arguments {
         
         inputAudioPath = args[1]
         
-        guard let windowDuration = Double(args[2]),
-              let timescale = Int32(args[3]),
-              let threshold = Double(args[4]),
-              let overlap = Double(args[5]) else {
+        guard
+            let windowDuration = Double(args[2]),
+            let timescale = Int32(args[3]),
+            let threshold = Double(args[4]),
+            let overlap = Double(args[5])
+        else {
             throw ArgumentError.invalidFormat
         }
         
@@ -43,12 +45,12 @@ enum ArgumentError: Error {
         case .invalidCount:
             return "Usage: SoundFileClassifier <input_audio_path.mp4> <window_duration_seconds> <preferred_timescale> <confidence_threshold> <overlap_factor>"
         case .invalidFormat:
-            return "Ошибка: не удалось преобразовать аргументы."
+            return "Error: Failed to parse arguments."
         }
     }
 }
 
-// MARK: - Оптимизированный класс для обработки результатов
+// MARK: - Laughter Detector
 final class LaughterDetector: NSObject, SNResultsObserving {
     private let confidenceThreshold: Double
     private var laughterResults: [String: Double] = [:]
@@ -62,29 +64,25 @@ final class LaughterDetector: NSObject, SNResultsObserving {
     func request(_ request: SNRequest, didProduce result: SNResult) {
         guard let classificationResult = result as? SNClassificationResult else { return }
         
-        // Ищем только смех, не сохраняем все классификации
-        if let laughterClassification = classificationResult.classifications.first(where: { 
-            $0.identifier == laughterIdentifier && $0.confidence >= confidenceThreshold 
+        if let laughterClassification = classificationResult.classifications.first(where: {
+            $0.identifier == laughterIdentifier && $0.confidence >= confidenceThreshold
         }) {
             let timeKey = String(classificationResult.timeRange.start.seconds)
-            // Округляем confidence до 2 знаков после запятой
-            let roundedConfidence = round(laughterClassification.confidence * 100) / 100
+            let roundedConfidence = (round(laughterClassification.confidence * 100) / 100)
             laughterResults[timeKey] = roundedConfidence
         }
     }
     
     func getResults() -> LaughterResults {
-        return laughterResults
+        laughterResults
     }
 }
 
-// MARK: - Основная функция
-func analyzeLaughter() throws {
+// MARK: - Main Analysis
+func runAnalysis() throws {
     let args = try Arguments()
-    
     let audioFileURL = URL(fileURLWithPath: args.inputAudioPath)
     
-    // Создаем запрос для анализа
     let classifySoundRequest = try SNClassifySoundRequest(classifierIdentifier: .version1)
     classifySoundRequest.windowDuration = CMTime(
         seconds: args.windowDurationSeconds,
@@ -92,62 +90,45 @@ func analyzeLaughter() throws {
     )
     classifySoundRequest.overlapFactor = args.overlapFactor
     
-    // Создаем детектор смеха
     let laughterDetector = LaughterDetector(confidenceThreshold: args.confidenceThreshold)
     
-    // Создаем и настраиваем анализатор
     guard let audioFileAnalyzer = try? SNAudioFileAnalyzer(url: audioFileURL) else {
-        throw NSError(domain: "AudioAnalysisError", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: "Не удалось создать анализатор аудиофайла."
-        ])
+        throw NSError(
+            domain: "AudioAnalysisError",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Failed to create audio file analyzer."]
+        )
     }
     
     try audioFileAnalyzer.add(classifySoundRequest, withObserver: laughterDetector)
     audioFileAnalyzer.analyze()
     
-    // Получаем результаты
     let results = laughterDetector.getResults()
-    
-    // Сохраняем результаты
     try saveResults(results)
-    
 }
 
-// MARK: - Сохранение результатов
+// MARK: - Save Results
 func saveResults(_ results: LaughterResults) throws {
-    // Сортируем результаты по времени (численно) перед сериализацией
-    let sortedResults = results.sorted { (first, second) in
-        let firstTime = Double(first.key) ?? 0
-        let secondTime = Double(second.key) ?? 0
-        return firstTime < secondTime
+    let sortedResults = results.sorted {
+        (Double($0.key) ?? 0) < (Double($1.key) ?? 0)
     }
     
-    // Создаем JSON вручную для сохранения порядка
     let encoder = JSONEncoder()
-    encoder.outputFormatting = .prettyPrinted
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     
-    var jsonString = "{\n"
-    for (index, (key, value)) in sortedResults.enumerated() {
-        let valueData = try encoder.encode(value)
-        let valueString = String(data: valueData, encoding: .utf8)!
-        jsonString += "  \"\(key)\" : \(valueString)"
-        if index < sortedResults.count - 1 {
-            jsonString += ","
-        }
-        jsonString += "\n"
+    let jsonData = try encoder.encode(Dictionary(uniqueKeysWithValues: sortedResults))
+    if let jsonString = String(data: jsonData, encoding: .utf8) {
+        print(jsonString)
     }
-    jsonString += "}"
-    
-    print(jsonString)
 }
 
-// MARK: - Точка входа
+// MARK: - Entry Point
 do {
-    try analyzeLaughter()
+    try runAnalysis()
 } catch let error as ArgumentError {
     print(error.localizedDescription)
     exit(1)
 } catch {
-    print("Ошибка при анализе: \(error.localizedDescription)")
+    print("Analysis error: \(error.localizedDescription)")
     exit(1)
 }

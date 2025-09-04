@@ -9,72 +9,59 @@ class VideoURLModel(BaseModel):
 
 
 class Settings(BaseSettings):
-    # Project paths
-    AUDIO_DIR: Path = Path("./data/audio")
+    class Config:
+        env_file = Path(__file__).parent.parent / ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
 
-    # PostgreSQL Configuration
+    # === Project paths ===
+    DATA_DIR: Path = Path("./data")
+
+    # === PostgreSQL Configuration ===
     POSTGRES_DB: str
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_HOST: str
     POSTGRES_PORT: int
 
-    # MinIO Configuration
+    # === MinIO Configuration ===
     MINIO_ROOT_USER: str
     MINIO_ROOT_PASSWORD: str
     MINIO_DOMAIN: str
-    MINIO_AUDIO_BUCKET: str = "standup-project"  # имя бакета в MinIO
-    MINIO_AUDIO_PATH: str = "data/audio"  # префикс (папка) внутри бакета
+    MINIO_AUDIO_BUCKET: str = "standup-project"  # bucket name in MinIO
+    MINIO_AUDIO_PATH: str = "data/audio"  # prefix (folder) inside the bucket
 
-    # API Keys
-    GEMINI_API_KEY: str
-
-    # Proxy URL
-    PROXY_URL: str
-
-    # LLM and Transcription Models
-    WHISPER_MODEL: str = "mlx-community/whisper-large-v3-turbo"
-    GEMINI_MODEL_FLASH: str = "gemini-2.5-flash"
-
-    # MLX-Whisper params
-    TRANSCRIBE_PARAMS: dict = {
-        "temperature": 0,
-        "compression_ratio_threshold": 2.0,
-        "logprob_threshold": -0.5,
-        "no_speech_threshold": 0.2,
-        "hallucination_silence_threshold": 2.0,
-        "initial_prompt": "StandUP show",
-        "language": "ru",
-    }
-    RE_TRANSCRIBE_PARAMS: dict = {
-        "condition_on_previous_text": False,
-        "language": "ru",
-    }
-
-    # yt-dlp settings
-    YDL_OPTS: dict = {
-        "format": "m4a/bestaudio/best",
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
+    # === yt-dlp settings ===
+    YDL_DOWNLOAD_OPTS: dict = {
+        "format": "bestaudio/best",
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "opus",
+            }
+        ],
+        "postprocessor_args": [
+            "-c:a",
+            "libopus",  # Opus codec
+            "-b:a",
+            "16k",  # bitrate
+        ],
         "cookiesfrombrowser": ("safari", None, None, None),
         "quiet": True,
     }
 
-    YDL_OPTS_PLAYLIST: dict = {
+    YDL_PLAYLIST_OPTS: dict = {
         "skip_download": True,
         "extract_flat": "in_playlist",
+        "cookiesfrombrowser": ("safari", None, None, None),
         "quiet": True,
     }
 
-    # Sound analysis settings
+    # === Sound analysis settings ===
     WINDOW_DURATION_SECONDS: int = 1
     PREFERRED_TIMESCALE: int = 600
     CONFIDENCE_THRESHOLD: float = 0.5
     OVERLAP_FACTOR: float = 0.8
-
-    class Config:
-        env_file = Path(__file__).parent.parent / ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
 
 
 settings = Settings()

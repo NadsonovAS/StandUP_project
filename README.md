@@ -1,129 +1,105 @@
-# Проект StandUP
+# StandUP Project
 
-Набор инструментов для обработки и анализа YouTube-контента в жанре юмористических шоу. 
+A set of tools for processing and analyzing YouTube content in the genre of comedy shows.
 
-Проект автоматизирует весь процесс: от загрузки аудио из плейлистов и их транскрибации с помощью mlx-whisper до глубокого анализа контента. Используя нативные возможности Apple Silicon и фреймворк SoundAnalysis определяются моменты смеха в аудиодорожках. Параллельно, с помощью Gemini API, извлекаются и классифицируются темы выступлений, что позволяет в дальнейшем создавать детальные метрики и дашборды для анализа популярности тем, реакции аудитории и других ключевых аспектов выступлений.
+The project automates the entire process: from downloading audio from playlists and transcribing them using parakeet-mlx to deep content analysis. Utilizing the native capabilities of Apple Silicon and the SoundAnalysis framework, moments of laughter in audio tracks are detected. In parallel, using the Gemini CLI, performance topics are extracted and classified, which further allows for the creation of detailed metrics and dashboards for analyzing topic popularity, audience reaction, and other key aspects of performances.
 
-Работает исключительно на macOS с Apple Silicon.
+Works exclusively on macOS with Apple Silicon.
 
-## Реализовано
+## Implemented
 
-![alt text](image-2.png)
+![alt text](image.png)
 
-*   **PostgreSQL**: Реляционная база данных для хранения метаданных и результатов обработки.
-*   **MinIO**: S3-совместимое объектное хранилище для аудиофайлов.
-*   **Docker**: Контейнеризация сервисов (PostgreSQL, MinIO).
-*   **yt-dlp**: Загрузка контента с YouTube.
-*   **mlx-whisper**: Транскрибация аудио на Apple Silicon.
-*   **SoundAnalysis**: Фреймворк Apple для анализа звука (используется для детекции смеха).
-*   **Gemini API**: Большая языковая модель для анализа текста.
-*   **Pydantic**: Валидация данных.
+### Storage
 
-## Дополнительно (обязательно для запуска)
-*   **openai-gemini**: Gemini ➜ OpenAI API proxy. Для работы с Gemini без использования VPN, требуется деплой и получение своего proxy URL согласно - https://github.com/PublicAffairs/openai-gemini. Полезное описание на русском - https://habr.com/ru/articles/798123/.
+*   **Docker**: Containerization of services (PostgreSQL, MinIO).
+*   **PostgreSQL**: Relational database for storing metadata and processing results.
+*   **MinIO**: S3-compatible object storage for audio files.
 
-## Требуются доработки
-### Пайплайн
-1. Реализация классификации текста (~30 классов) через Gemini API. Интеграция в БД и настройка промта (требуемые техники промта: many-shots, CoT)
-2. Разбиение монолитного main.py и общий рефакторинг:
-- Операции с базой данных: настройка коннекта, коммитов, роллбеков
-- Нормализовать имя функций и их описаний
+### Extract and transfrom
+*   **yt-dlp**: Downloading audio and metadata from YouTube.
+*   **parakeet-mlx**: Audio transcription on Apple Silicon.
+*   **SoundAnalysis**: Apple framework for sound analysis (used for laughter detection).
+*   **Gemini CLI**: Large language model for text analysis.
 
-## Планируется реализовать
+## Planned Features
 
-- Нормализованная схема и миграция данных из raw слоя
-- DBT
-- Superset
+*   Normalized schema and data migration from raw layer
+*   DBT
+*   Superset
+
+## Planned Metrics for Dashboard:
 
 
-## Планируемые метрики для дашборда:
+Analysis of selected show:
+*   Top 10 popular videos by (choice): views, likes, number of comments.
+*   Most frequently occurring topics.
+*   Top 10 Topics by reaction (aggregation of laughter detection).
+*   Top 10 videos by reaction (title, total number of laughter detections, total duration of laughter, average time between laughs).
+*   Advertising (frequency of appearance, try to extract brands).
+*   Amount of profanity in video/topic.
+*   ...and more.
 
-Анализ выбранного шоу:
-- Топ-10 популярных видео по(выбор): просмотры, лайки, кол-во комментариев
-- Самые часто встречающиеся темы
-- Топ-10 Тем по реакции (агрегация детекции смеха)
-- Топ-10 видео по реакции (название, общее кол-во детекций смеха, общая продолжительность смеха, среднее время между смехом)
-- Реклама (частота появления, попробовать вытащить бренды)
-- Кол-во мата в видео/теме
-- еще....
+Switches: show, topic, year, comedians...
 
-Переключатели: шоу, тема, год, комики...
-
-
-
-## Структура проекта
+## Project Structure
 
 ```txt
 StandUP_project
-├── .env                        # Файл с переменными окружения
-├── .gitignore                  # Файл для исключения файлов из Git
-├── docker-compose.yml          # Конфигурация для запуска сервисов в Docker
+├── .env                        # Environment variables file
+├── .gitignore                  # File to exclude files from Git
+├── docker-compose.yml          # Configuration for running services in Docker
 ├── initdb/
-│   └── init_schema.sql         # SQL-скрипт для инициализации схемы БД
-├── pyproject.toml              # Определение зависимостей и метаданных проекта
-├── README.md                   # Документация проекта
-├── data/
-│   └── audio/                  # Директория для хранения временных аудиофайлов
+│   └── init_schema.sql         # SQL script for initializing the DB schema
+├── pyproject.toml              # Project dependencies and metadata definition
+├── README.md                   # Project documentation
+├── data/                       # Directory for storing temporary audio files
 └── src/
-    ├── config.py               # Конфигурация проекта (пути, ключи, настройки)
-    ├── database.py             # Функции для работы с базой данных PostgreSQL
-    ├── llm.py                  # Функции для взаимодействия с Gemini API
-    ├── main.py                 # Основной скрипт для запуска пайплайна
-    ├── pydantic_models.py      # Pydantic-модели для валидации данных
-    ├── sound_classifier        # Исполняемый файл Swift для анализа звука
-    ├── sound_classifier.py     # Модуль для запуска Swift-скрипта анализа звука
-    ├── sound_classifier.swift  # Исходный код Swift для анализа звука
-    ├── transcribe.py           # Модуль для транскрибации аудио
-    ├── utils.py                # Вспомогательные функции
-    └── youtube_downloader.py   # Модуль для загрузки данных с YouTube
+    ├── config.py               # Project configuration (paths, keys, settings)
+    ├── database.py             # Functions for working with PostgreSQL database
+    ├── llm.py                  # Functions for interacting with Gemini API
+    ├── main.py                 # Main script for running the pipeline
+    ├── models.py               # Pydantic models for data validation
+    ├── sound_classifier        # Executable Swift file for sound analysis
+    ├── sound_classifier.py     # Module for running the Swift sound analysis script
+    ├── sound_classifier.swift  # Swift source code for sound analysis
+    ├── transcribe.py           # Module for audio transcription
+    ├── utils.py                # Helper functions
+    └── youtube_downloader.py   # Module for downloading data from YouTube
 ```
 
+## Setup and Launch
 
-## Установка и запуск
-0. **Обятазельно:** Выполнить деплой согласно - https://github.com/PublicAffairs/openai-gemini, получить proxy url и внести в .env файл.
-
-1.  **Клонируйте репозиторий:**
+1.  **Clone the repository:**
     ```bash
-    git clone <URL репозитория>
+    git clone <repository URL>
     cd StandUP_project
     ```
 
-2.  **Создайте и настройте файл `.env`:**
-    Создайте файл `.env` в корне проекта и заполнив его по следующему шаблону:
+2.  **Create and configure the `.env` file:**
+    Create a `.env` file in the project root and fill it according to the following template:
     ```env
-    # PostgreSQL
-    POSTGRES_DB=standup_db
-    POSTGRES_USER=user
-    POSTGRES_PASSWORD=password
+    # MinIO Configuration
+    MINIO_ROOT_USER=standup_project
+    MINIO_ROOT_PASSWORD=standup_project
+    MINIO_DOMAIN=localhost:9000
+
+    # PostgreSQL Configuration
+    POSTGRES_DB=standup_project
+    POSTGRES_USER=standup_project
+    POSTGRES_PASSWORD=standup_project
     POSTGRES_HOST=localhost
     POSTGRES_PORT=5432
-
-    # MinIO
-    MINIO_ROOT_USER=minioadmin
-    MINIO_ROOT_PASSWORD=minioadmin
-    MINIO_DOMAIN=localhost:9000
-    MINIO_AUDIO_BUCKET=audio-files
-
-    # API Keys
-    GEMINI_API_KEY=your_gemini_api_key
-
-    # Proxy
-    PROXY_URL=your_proxy_url
     ```
 
-3.  **Запустите сервисы с помощью Docker Compose:**
+3.  **Start services with Docker Compose:**
     ```bash
     docker-compose up -d
     ```
-    Эта команда запустит контейнеры с PostgreSQL и MinIO.
+    This command will start containers with PostgreSQL and MinIO.
 
-4.  **Установите зависимости Python:**
+4.  **Run the pipeline:**
+    Pass the YouTube playlist URL as a command-line argument (the URL must contain "...&list=..."):
     ```bash
-    uv sync
-    ```
-
-5.  **Запустите пайплайн:**
-    Передайте URL плейлиста YouTube в качестве аргумента командной строки (url должен содержать часть "...&list=..."):
-    ```bash
-    uv run ./src/main.py "https://www.youtube.com/watch?v=MaVc3dqiEI4&list=PLcQngyvNgfmLi9eyV9reNMqu-pbdKErKr" 
+    uv run ./src/main.py "https://www.youtube.com/watch?v=MaVc3dqiEI4&list=PLcQngyvNgfmLi9eyV9reNMqu-pbdKErKr"
     ```

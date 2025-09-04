@@ -1,227 +1,257 @@
 import json
-import time
-from io import StringIO
-from pathlib import Path
+import subprocess
 
-import pandas as pd
-from openai import OpenAI
-
-import pydantic_models
-from config import settings
 from utils import try_except_with_log
 
 
-@try_except_with_log()
-def format_json_to_tsv(transcribe_json):
-    """
-    Конвертация json в TSV (start, text)
-    """
-    value = json.dumps(transcribe_json)
-    df = pd.read_json(StringIO(value))
+def run_gemini(prompt: str) -> dict | None:
+    current_prompt = prompt
+    for attempt in range(2):
+        result = subprocess.run(
+            ["gemini", "-p", current_prompt],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
 
-    # Очистка от пустых строк
-    df = df[df["text"] != ""]
+        if result.returncode != 0:
+            print(f"Gemini CLI failed: {result.stderr}")
+            return None
 
-    # Группировка подряд идущих одинаковых текстов
-    group_id = (df["text"] != df["text"].shift()).cumsum()
-    # Посчитаем длину каждой группы
-    group_sizes = df.groupby(group_id)["text"].transform("count")
-    # Удалим строки, если группа состоит из 3 и более одинаковых подряд идущих текстов
-    df_cleaned = df[group_sizes < 3].reset_index(drop=True)
+        llm_output = result.stdout.strip()
 
-    df_export = df_cleaned[["id", "text"]]
-    tsv_text = df_export.to_csv(sep="\t", index=False)
+        # Clean up markdown code blocks
+        if "```json" in llm_output:
+            llm_output = llm_output.split("```json")[1].split("```")[0].strip()
+        elif "```" in llm_output:
+            # Handle case where it's just wrapped in backticks without json marker
+            llm_output = llm_output.split("```")[1].split("```")[0].strip()
 
-    return tsv_text
+        try:
+            summary_json = json.loads(llm_output)
+
+            return summary_json
+
+        except json.JSONDecodeError as e:
+            # Prepare for retry with corrective prompt
+            current_prompt = (
+                prompt
+                + f"Your previous response had a JSON formatting error: {e}.\n Here is the invalid response you provided:\n\n {llm_output} \n\n Please correct the JSON and provide the full, valid JSON object."
+            )
+
+    return None
 
 
-@try_except_with_log("Отправка запроса Gemini для выделения тем")
-def get_chapter_with_llm(tsv_text) -> dict | None:
-    """
-    Обработка TSV данных, выделение ключевых тем и их id с помощью Gemini API
-    """
-
+@try_except_with_log("Sending Gemini request for topic extraction")
+def llm_summary(transcribe_json):
     prompt = """
-Role: You are an advanced AI analyst, an expert in thematic analysis of comedy shows and stand-up performances.
+### Role and Goal
+**You:** An AI expert-analyst specializing in structuring conversational content, such as stand-up comedy.
+**Your task:** Analyze the provided text and generate a single, valid JSON object that segments the text into main thematic blocks in accordance with all the rules listed below. Your output must contain **only** the JSON object and nothing else. Do not add any introductory phrases, explanations, or apologies, such as 'Here is the JSON you requested'.
 
-Task: Analyze the provided transcript and extract the main semantic themes in Russian.
+### Critical Rules and Instructions
+1. **Thematic Segmentation:**
+- Identify large, self-contained thematic blocks in chronological order. A theme is a main subject of discussion that lasts for several minutes.
+- **Do not split themes:** The same topic (for example, 'Stories About My Cat') should be represented as a single theme, not several small ones.
+- **Do not merge themes:** Unrelated topics (for example, politics and then dating) should be separated into different themes.
+    
+2. **Content Requirements:**
+- **id**: Use the **integer key** from the transcript (for example, "0", "1", "2", …) from which a new theme begins. The ids must be strictly in ascending order.
+- **theme**: Theme titles must be in English, brief (2-5 words), and descriptive (for example, "Awkward First Dates").
+- **summary**:
+  - For all standard themes, write one detailed paragraph in English, with a length of **at least 50 words**. The summary should neutrally convey the main plot, key jokes, and the performer's point of view.
+  - **CRITICAL EXCEPTION - Advertising:** This rule has the highest priority. If you find an advertising integration, the theme **must** be called "Advertising". The summary for such a theme must have a special format: it **MUST** begin with Company: <COMPANY NAME>, followed by a single sentence describing the advertisement (maximum 25 words).
+    
 
-Analysis Rules:
-1. Major blocks only: Extract only large, key themes. A theme is a semantic block. Do not break the performance into individual jokes.
-2. Strict chronology: Themes must follow the exact order in which they appear in the transcript.
-3. Advertising segments: Always detect advertising blocks. For them, use strictly the Russian theme name "Реклама".
+### Output Format Specification
+- The output must be a **single JSON object**.
+- The root key must be "chapters", containing an array of objects.
+- Each object in the array must contain three keys: id (integer), theme (string), and summary (string).
+    
+**Example of Valid Output:**
 
-Output Format:
-Return the result strictly in JSON format with the following fields:
-- "theme" — array of strings (themes in Russian).
-- "id" — array of numbers (IDs of the starting positions for each theme).
-
-Example Output:
+~~~
 {
-  "theme": [
-    "Реклама",
-    "Случай в метро: узнавание со спины и страх",
-    "Реклама",
-    "Родник в Москве и аналогия слежки за курьером с охотой",
-    "Реклама",
-    "Реклама",
-    "Анализ сказки 'Тысяча и одна ночь' и психология султана",
-    "Различия между детьми и взрослыми, а не между полами",
-    "Необратимость ошибок и несправедливость врожденной красоты",
-    "Уязвимость человека в момент выноса мусора и способы увидеть его настоящим"
-  ],
-  "id": [0, 88, 228, 309, 557, 617, 776, 1218, 1452, 1955]
+  "chapters": [
+    {
+      "id": 3,
+      "theme": "Advertising",
+      "summary": "Company: Standupclub.ru. The advertisement promotes the website for watching stand-up comedy shows, highlighting the availability of new releases and ad-free viewing."
+    },
+    {
+      "id": 15,
+      "theme": "Travel Mishaps and Unexpected Situations",
+      "summary": "The comedian recounts a series of travel mishaps, starting with a gig in Pyatigorsk where the venue was changed from a club to a wedding hall, causing confusion for attendees..."
+    }
+  ]
 }
+~~~
+
+### Text for Analysis:
+
 """
 
-    client = OpenAI(
-        base_url=settings.PROXY_URL,
-        api_key=settings.GEMINI_API_KEY,
-    )
-
-    response = client.chat.completions.parse(
-        model="gemini-2.5-flash",
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": tsv_text},
-        ],
-        temperature=0,
-        response_format=pydantic_models.LlmResponseTheme,
-    )
-
-    content = response.choices[0].message.parsed
-    llm_response = content.model_dump()
-
-    return llm_response
+    base_prompt = prompt + str(transcribe_json)
+    return run_gemini(base_prompt)
 
 
-@try_except_with_log("Отправка запроса Gemini для получения summarize")
-def get_summarize_with_llm(transcribe_json, llm_chapter_json) -> dict | None:
-    """
-    Summarizes Russian (or other language) segments into English paragraphs using LLM.
-    The LLM is instructed to always output in English only.
-    """
+@try_except_with_log("Sending Gemini request for topic classification")
+def llm_classifier(llm_chapter_json):
+    prompt = """
+**Task:** Your task is to analyze the provided summaries and generate a single, valid JSON object that classifies each summary according to the given categories. The JSON output should be the only thing you generate.
 
-    strict_prompt = """
-You are an assistant that always responds in English regardless of the input language.  
-Your task: Read the provided text (which may be in Russian or another language) and write a concise summary in one paragraph in English.  
-Focus only on the main ideas and key facts. Exclude opinions, subjective statements, and unnecessary details.  
-Do not use any non-English words in your response. Output must be exclusively in English.
+**Role:** You are a strict and precise classification system for stand-up comedy content.
 
-Example:
-[Input in Russian]: "Вчера в Москве состоялась конференция по искусственному интеллекту..."
-[Output in English]: "A conference on artificial intelligence took place in Moscow yesterday, bringing together experts to discuss recent advancements."
+**Input:**
+1.  **Categories List:** A JSON object containing the official `main_category` and `subcategory` list. You MUST use these categories exactly as provided.
+2.  **Summaries Data:** A JSON object containing `id`, `theme`, and `summary` for different segments of a stand-up show.
 
-Now, summarize the following text in English:
+**Objective:** Classify each summary into exactly one `main_category` and one `subcategory` from the **Categories List**.
+
+**Instructions & Rules:**
+
+1.  **Strict Classification:**
+*   For each summary from the **Summaries Data**, select exactly **one** `main_category` and, within it, exactly **one** `subcategory` from the provided **Categories List**.
+*   If multiple categories seem applicable, choose the one that represents the most prominent and central topic of the summary.
+*   **Do not** invent new categories or subcategories. The spelling and casing must match the **Categories List** perfectly.
+
+2.  **Output Format:**
+*   The output must be a single, valid JSON object.
+*   The JSON object must have a single root key: `"classifications"`.
+*   The value of `"classifications"` must be an array of objects.
+*   Each object in the array corresponds to a summary from the input and must contain:
+    *   `"id"`: The original integer ID of the summary.
+    *   `"main_category"`: The selected main category.
+    *   `"subcategory"`: The selected subcategory.
+    *   `"reason"`: A brief (1-2 sentences) explanation in English for your classification choice.
+
+**Categories List:**
+[
+  {
+    "main_category": "Advertising",
+    "subcategories": [
+      "Upcoming shows & live events",
+      "Streaming platforms & online services",
+      "Marketplaces & e-commerce",
+      "Tech products & gadgets",
+      "Food & beverages",
+      "Travel & lifestyle services",
+      "Finance & banking apps",
+      "Health & fitness products",
+      "Mobile operators & internet providers",
+      "Education & online courses"
+    ]
+  },
+  {
+    "main_category": "Politics & Society",
+    "subcategories": [
+      "Political satire",
+      "Social commentary & inequality",
+      "Human rights & activism",
+      "Immigration & migration",
+      "Law, crime & justice",
+      "Censorship & freedom of speech"
+    ]
+  },
+  {
+    "main_category": "Economy, Work & Money",
+    "subcategories": [
+      "Workplace humor & office culture",
+      "Money & personal finance",
+      "Career struggles & unemployment",
+      "Business & entrepreneurship"
+    ]
+  },
+  {
+    "main_category": "Health, Body & Mind",
+    "subcategories": [
+      "Physical health & fitness",
+      "Mental health & therapy",
+      "Addictions & substance use",
+      "Aging & body image"
+    ]
+  },
+  {
+    "main_category": "Relationships & Social Life",
+    "subcategories": [
+      "Dating & romance",
+      "Marriage & family life",
+      "Friendship & social circles",
+      "Sex & intimacy",
+      "Parenting"
+    ]
+  },
+  {
+    "main_category": "Science, Technology & Digital Life",
+    "subcategories": [
+      "Tech & gadgets",
+      "Internet culture, memes & influencers",
+      "Artificial intelligence & future tech",
+      "Science news & discoveries"
+    ]
+  },
+  {
+    "main_category": "Culture, Arts & Media",
+    "subcategories": [
+      "Movies, TV & streaming",
+      "Music & live performance",
+      "Literature & art references",
+      "Celebrities & fame",
+      "Pop culture trends"
+    ]
+  },
+  {
+    "main_category": "Environment & Planet",
+    "subcategories": [
+      "Climate change & sustainability jokes",
+      "Animals & pets",
+      "Urban vs rural life",
+      "Natural disasters & weather humor"
+    ]
+  },
+  {
+    "main_category": "History, Identity & Heritage",
+    "subcategories": [
+      "Historical events satire",
+      "Cultural traditions & heritage",
+      "Generational differences & nostalgia",
+      "National stereotypes"
+    ]
+  },
+  {
+    "main_category": "Dark, Edgy & Absurd Humor",
+    "subcategories": [
+      "Morbid comedy & death jokes",
+      "Offensive or taboo topics",
+      "Self-deprecating humor",
+      "Surreal or absurd comedy"
+    ]
+  }
+]
+
+**Example of a valid output:**
+~~~json
+{
+  "classifications": [
+    {
+      "id": 0,
+      "main_category": "Advertising",
+      "subcategory": "Upcoming shows & live events",
+      "reason": "The summary explicitly describes a promotion for upcoming live stand-up comedy shows."
+    },
+    {
+      "id": 29,
+      "main_category": "Politics & Society"
+      "subcategory": "Law, crime & justice",
+      "reason": "The narrative is centered around a car theft, a police report, the recovery of stolen items, and the eventual capture of the criminals, which directly relates to themes of crime and the justice system.",
+    }
+  ]
+}
+~~~
+
+**Summaries Data to Classify:**
+
 """
 
-    data = transcribe_json
-    split_points = llm_chapter_json.get("id")
-
-    if not split_points or not data:
-        return None
-
-    client = OpenAI(
-        base_url="http://localhost:1234/v1",
-        api_key="lm-studio",
-    )
-
-    result_list = []
-
-    for index, _ in enumerate(split_points):
-        start_idx = split_points[index]
-        end_idx = (
-            split_points[index + 1] if index + 1 < len(split_points) else len(data)
-        )
-
-        joined_text = " ".join(item["text"] for item in data[start_idx:end_idx]).strip()
-
-        if not joined_text:
-            result_list.append("No relevant content to summarize.")
-            continue
-
-        response = client.chat.completions.create(
-            model="lm-studio",
-            messages=[
-                {"role": "system", "content": strict_prompt},
-                {"role": "user", "content": joined_text},
-            ],
-            temperature=0,
-        )
-
-        content = response.choices[0].message.content.strip()
-        result_list.append(content)
-        time.sleep(1)
-
-    return {"summarize": result_list}
-
-
-@try_except_with_log("Отправка запроса Gemini для получения классификаций ")
-def get_classifier_with_llm(llm_summarize_json) -> str | None:
-    """
-    Классификация суммаризованного текста с помощью LLM на основе categories.yaml.
-    Возвращает словарь с результатами классификации.
-    """
-
-    # Load YAML classifier from a file
-    categories_path = Path(__file__).parent / "categories.yaml"
-    with open(categories_path, "r", encoding="utf-8") as f:
-        categories_yaml = f.read()
-
-    # English instruction for the LLM, embedding the YAML
-    system_prompt = f"""
-You are a classification system for stand-up comedy content.
-
-Here is your YAML classifier of categories and subcategories:
-
-{categories_yaml}
-
-Your task:
-1. Analyze the provided text.
-2. Use ONLY the categories and subcategories present in the YAML above.
-3. Identify exactly ONE main category (`main_category`) that best fits the text.
-4. Inside that main category, choose exactly ONE subcategory (`subcategory`).
-5. If multiple categories could be relevant, pick the one where the humor or topic is most prominent.
-6. Return the result as JSON in the following format:
-
-{{
-  "main_category": "<exact main category name from YAML>",
-  "subcategory": "<exact subcategory name from YAML>",
-  "reason": "<short explanation of your choice>"
-}}
-
-Rules:
-- Do NOT invent new categories or subcategories.
-- Keep the spelling of category and subcategory EXACTLY as in the YAML.
-- Keep the explanation ("reason") concise.
-"""
-
-    result_list = []
-    result_dict = dict()
-
-    summarize_list = llm_summarize_json.get("summarize")
-
-    for summarize in summarize_list:
-        client = OpenAI(
-            base_url="http://localhost:1234/v1",
-            api_key="lm-studio",
-        )
-
-        response = client.chat.completions.parse(
-            model="lm-studio",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": summarize},
-            ],
-            temperature=0,
-            response_format=pydantic_models.LlmResponseClassifier,
-        )
-
-        content = response.choices[0].message.parsed
-        llm_response = content.model_dump()
-        result_list.append(llm_response)
-
-        result_dict.update({"classifier": result_list})
-        time.sleep(1)
-
-    return result_dict
+    base_prompt = prompt + str(llm_chapter_json)
+    return run_gemini(base_prompt)

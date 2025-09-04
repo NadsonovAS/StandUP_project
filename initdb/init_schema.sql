@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     video_meta_json JSONB,
     transcribe_json JSONB,
     llm_chapter_json JSONB,
-    llm_summarize_json JSONB,
     llm_classifier_json JSONB,
     sound_classifier_json JSONB,
     process_status TEXT

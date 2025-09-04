@@ -15,9 +15,8 @@ dist/
 
 
 # Расширения файлов
-/src/test.py
 *.json
-*.m4a
+*.opus
 *.lock
 *.ipynb
 *.part
