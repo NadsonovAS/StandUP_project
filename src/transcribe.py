@@ -17,17 +17,17 @@ def transcribe_audio(audio_path):
     model = from_pretrained("mlx-community/parakeet-tdt-0.6b-v3")
     result = model.transcribe(
         audio_path,
-        chunk_duration=30.0,
-        overlap_duration=3.0,
+        chunk_duration=60.0,
+        overlap_duration=15.0,
     )
 
     dict_for_db = {}
 
     for num, sentence in enumerate(result.sentences):
+        text = sentence.text
         start_time = round(sentence.start, 2)
         end_time = round(sentence.end, 2)
-        text = sentence.text
 
-        dict_for_db[num] = {"start": start_time, "end": end_time, "text": text}
+        dict_for_db[num] = {"text": text, "start": start_time, "end": end_time}
 
     return dict_for_db

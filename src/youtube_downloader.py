@@ -62,7 +62,7 @@ def yt_playlist_extract_info(youtube_url: str) -> List[ProcessVideo]:
         List[ProcessVideo]: A list of validated ProcessVideo objects for each video.
     """
     with yt_dlp.YoutubeDL(settings.YDL_PLAYLIST_OPTS) as ydl:
-        all_playlist_info = ydl.extract_info(youtube_url, download=False)
+        all_playlist_info = ydl.extract_info(youtube_url)
 
     playlist_id = all_playlist_info.get("id")
     playlist_title = all_playlist_info.get("title")

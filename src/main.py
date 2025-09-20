@@ -1,6 +1,5 @@
 import argparse
 import logging
-import time
 from typing import Any, Callable
 
 from minio import Minio
@@ -58,7 +57,6 @@ def ensure_video_metadata(video_row: Any, conn, cursor) -> None:
         "video_meta_json",
         lambda: youtube_downloader.yt_video_extract_info(video_row.video_url),
     )
-    time.sleep(2)
 
 
 def ensure_audio_and_transcription(
@@ -154,12 +152,11 @@ def process_playlist(youtube_url: str, conn, cursor, minio_client: Minio) -> Non
     - Download video metadata
     - Download audio
     - Run transcription
-    - Extract topics and summarize text
+    - Extract topics
     - Classify summary
-    - Extract laughter tags
+    - Extract laughter
     """
     playlist_info = youtube_downloader.yt_playlist_extract_info(youtube_url)
-    time.sleep(3)
 
     database.new_video_from_playlist_info_to_db(conn, cursor, playlist_info)
 

@@ -8,7 +8,8 @@ def run_gemini(prompt: str) -> dict | None:
     current_prompt = prompt
     for attempt in range(2):
         result = subprocess.run(
-            ["gemini", "-p", current_prompt],
+            # ["gemini", "-p", current_prompt],
+            ["gemini", "-p", current_prompt, "-m", "gemini-2.5-flash"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -61,7 +62,6 @@ def llm_summary(transcribe_json):
 - **summary**:
   - For all standard themes, write one detailed paragraph in English, with a length of **at least 50 words**. The summary should neutrally convey the main plot, key jokes, and the performer's point of view.
   - **CRITICAL EXCEPTION - Advertising:** This rule has the highest priority. If you find an advertising integration, the theme **must** be called "Advertising". The summary for such a theme must have a special format: it **MUST** begin with Company: <COMPANY NAME>, followed by a single sentence describing the advertisement (maximum 25 words).
-    
 
 ### Output Format Specification
 - The output must be a **single JSON object**.
@@ -74,7 +74,7 @@ def llm_summary(transcribe_json):
 {
   "chapters": [
     {
-      "id": 3,
+      "id": 0,
       "theme": "Advertising",
       "summary": "Company: Standupclub.ru. The advertisement promotes the website for watching stand-up comedy shows, highlighting the availability of new releases and ad-free viewing."
     },
@@ -91,8 +91,23 @@ def llm_summary(transcribe_json):
 
 """
 
-    base_prompt = prompt + str(transcribe_json)
-    return run_gemini(base_prompt)
+    remove_keys = {"start", "end"}
+    filter_transcribe_json = {
+        key: {k: v for k, v in value.items() if k not in remove_keys}
+        for key, value in transcribe_json.items()
+    }
+    base_prompt = prompt + str(filter_transcribe_json)
+
+    # Get Gemini Respone
+    gemini_response = run_gemini(base_prompt)
+
+    # Add end_id for each chapter
+    end_id = max(map(int, filter_transcribe_json.keys()))
+    for i in gemini_response["chapters"][::-1]:
+        i["end_id"] = end_id
+        end_id = i["id"] - 1
+
+    return gemini_response
 
 
 @try_except_with_log("Sending Gemini request for topic classification")
@@ -103,27 +118,27 @@ def llm_classifier(llm_chapter_json):
 **Role:** You are a strict and precise classification system for stand-up comedy content.
 
 **Input:**
-1.  **Categories List:** A JSON object containing the official `main_category` and `subcategory` list. You MUST use these categories exactly as provided.
-2.  **Summaries Data:** A JSON object containing `id`, `theme`, and `summary` for different segments of a stand-up show.
+1.  **Categories List:** A JSON object containing the official  main_category  and  subcategory  list. You MUST use these categories exactly as provided.
+2.  **Summaries Data:** A JSON object containing  id ,  theme , and  summary  for different segments of a stand-up show.
 
-**Objective:** Classify each summary into exactly one `main_category` and one `subcategory` from the **Categories List**.
+**Objective:** Classify each summary into exactly one  main_category  and one  subcategory  from the **Categories List**.
 
 **Instructions & Rules:**
 
 1.  **Strict Classification:**
-*   For each summary from the **Summaries Data**, select exactly **one** `main_category` and, within it, exactly **one** `subcategory` from the provided **Categories List**.
+*   For each summary from the **Summaries Data**, select exactly **one**  main_category  and, within it, exactly **one**  subcategory  from the provided **Categories List**.
 *   If multiple categories seem applicable, choose the one that represents the most prominent and central topic of the summary.
 *   **Do not** invent new categories or subcategories. The spelling and casing must match the **Categories List** perfectly.
 
 2.  **Output Format:**
 *   The output must be a single, valid JSON object.
-*   The JSON object must have a single root key: `"classifications"`.
-*   The value of `"classifications"` must be an array of objects.
+*   The JSON object must have a single root key:  "classifications" .
+*   The value of  "classifications"  must be an array of objects.
 *   Each object in the array corresponds to a summary from the input and must contain:
-    *   `"id"`: The original integer ID of the summary.
-    *   `"main_category"`: The selected main category.
-    *   `"subcategory"`: The selected subcategory.
-    *   `"reason"`: A brief (1-2 sentences) explanation in English for your classification choice.
+    *    "id" : The original integer ID of the summary.
+    *    "main_category" : The selected main category.
+    *    "subcategory" : The selected subcategory.
+    *    "reason" : A brief (1-2 sentences) explanation in English for your classification choice.
 
 **Categories List:**
 [
@@ -235,15 +250,15 @@ def llm_classifier(llm_chapter_json):
   "classifications": [
     {
       "id": 0,
-      "main_category": "Advertising",
-      "subcategory": "Upcoming shows & live events",
-      "reason": "The summary explicitly describes a promotion for upcoming live stand-up comedy shows."
+      "reason": "The summary explicitly describes a promotion for Kozel non-alcoholic beer, which is a food and beverage product.",
+      "main_category": "Advertising"
+      "subcategory": "Food & beverages",
     },
     {
       "id": 29,
+      "reason": "The narrative is centered around a car theft, a police report, the recovery of stolen items, and the eventual capture of the criminals, which directly relates to themes of crime and the justice system.",
       "main_category": "Politics & Society"
       "subcategory": "Law, crime & justice",
-      "reason": "The narrative is centered around a car theft, a police report, the recovery of stolen items, and the eventual capture of the criminals, which directly relates to themes of crime and the justice system.",
     }
   ]
 }
@@ -252,6 +267,9 @@ def llm_classifier(llm_chapter_json):
 **Summaries Data to Classify:**
 
 """
+
+    for chapter in llm_chapter_json.get("chapters", []):
+        chapter.pop("end_id", None)
 
     base_prompt = prompt + str(llm_chapter_json)
     return run_gemini(base_prompt)

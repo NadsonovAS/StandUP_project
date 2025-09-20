@@ -1,5 +1,6 @@
 import logging
-import traceback
+
+# import traceback
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -29,7 +30,7 @@ def try_except_with_log(log_message: Optional[str] = None) -> Callable:
                 return func(*args, **kwargs)
             except Exception as e:
                 logger.error("Error in %s: %s", func.__name__, e)
-                traceback.print_exc()
+                # traceback.print_exc()
 
         return wrapper
 

@@ -1,105 +1,100 @@
 # StandUP Project
 
-A set of tools for processing and analyzing YouTube content in the genre of comedy shows.
+StandUP automates the ingestion and analysis of YouTube comedy shows on Apple Silicon. The pipeline downloads playlists, transcribes audio, detects laughter, classifies topics with Gemini, and prepares analytics-ready tables backed by PostgreSQL, MinIO, and dbt.
 
-The project automates the entire process: from downloading audio from playlists and transcribing them using parakeet-mlx to deep content analysis. Utilizing the native capabilities of Apple Silicon and the SoundAnalysis framework, moments of laughter in audio tracks are detected. In parallel, using the Gemini CLI, performance topics are extracted and classified, which further allows for the creation of detailed metrics and dashboards for analyzing topic popularity, audience reaction, and other key aspects of performances.
+![Pipeline overview](image.png)
 
-Works exclusively on macOS with Apple Silicon.
+## Key Capabilities
+- Download playlist metadata and audio with `yt-dlp`, caching results in MinIO.
+- Transcribe tracks locally via `parakeet-mlx` while detecting laughter using the SoundAnalysis Swift binary.
+- Summarise and classify transcripts through the Gemini CLI, persisting structured output to PostgreSQL.
+- Build downstream analytics models with dbt for dashboards and reporting.
 
-## Implemented
+## System Requirements
+- macOS 14+ on Apple Silicon (SoundAnalysis and parakeet-mlx depend on it).
+- Docker Desktop for PostgreSQL and MinIO containers.
+- Python 3.13 managed by [`uv`](https://github.com/astral-sh/uv) (installs project dependencies).
+- Safari signed in to YouTube; `yt-dlp` pulls cookies via the Safari browser integration.
+- `ffmpeg` available on the host for audio post-processing (installable via `brew install ffmpeg`).
 
-![alt text](image.png)
+## Quick Start
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd StandUP_project
+   ```
+2. **Install Python dependencies**
+   ```bash
+   uv sync
+   ```
+3. **Create `.env` in the project root**
+   ```env
+   # PostgreSQL
+   POSTGRES_DB=standup_project
+   POSTGRES_USER=standup_project
+   POSTGRES_PASSWORD=standup_project
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
 
-### Storage
+   # MinIO
+   MINIO_ROOT_USER=standup_project
+   MINIO_ROOT_PASSWORD=standup_project
+   MINIO_DOMAIN=localhost:9000
+   ```
+   The `MINIO_DOMAIN` value should match how you access the MinIO console locally.
+4. **Start infrastructure**
+   ```bash
+   docker-compose up -d
+   ```
+   This launches PostgreSQL, MinIO, and a helper container that bootstraps the `standup-project` bucket.
+5. **Run the ingestion pipeline**
+   ```bash
+   uv run src/main.py "https://www.youtube.com/watch?v=MaVc3dqiEI4&list=PLcQngyvNgfmLi9eyV9reNMqu-pbdKErKr"
+   ```
+   Use any playlist URL that contains the `list=` parameter. The script processes each video, updates database status flags, and leaves cached audio in `data/`.
 
-*   **Docker**: Containerization of services (PostgreSQL, MinIO).
-*   **PostgreSQL**: Relational database for storing metadata and processing results.
-*   **MinIO**: S3-compatible object storage for audio files.
-
-### Extract and transfrom
-*   **yt-dlp**: Downloading audio and metadata from YouTube.
-*   **parakeet-mlx**: Audio transcription on Apple Silicon.
-*   **SoundAnalysis**: Apple framework for sound analysis (used for laughter detection).
-*   **Gemini CLI**: Large language model for text analysis.
-
-## Planned Features
-
-*   Normalized schema and data migration from raw layer
-*   DBT
-*   Superset
-
-## Planned Metrics for Dashboard:
-
-
-Analysis of selected show:
-*   Top 10 popular videos by (choice): views, likes, number of comments.
-*   Most frequently occurring topics.
-*   Top 10 Topics by reaction (aggregation of laughter detection).
-*   Top 10 videos by reaction (title, total number of laughter detections, total duration of laughter, average time between laughs).
-*   Advertising (frequency of appearance, try to extract brands).
-*   Amount of profanity in video/topic.
-*   ...and more.
-
-Switches: show, topic, year, comedians...
-
-## Project Structure
-
+## Project Layout
 ```txt
 StandUP_project
-├── .env                        # Environment variables file
-├── .gitignore                  # File to exclude files from Git
-├── docker-compose.yml          # Configuration for running services in Docker
-├── initdb/
-│   └── init_schema.sql         # SQL script for initializing the DB schema
-├── pyproject.toml              # Project dependencies and metadata definition
-├── README.md                   # Project documentation
-├── data/                       # Directory for storing temporary audio files
-└── src/
-    ├── config.py               # Project configuration (paths, keys, settings)
-    ├── database.py             # Functions for working with PostgreSQL database
-    ├── llm.py                  # Functions for interacting with Gemini API
-    ├── main.py                 # Main script for running the pipeline
-    ├── models.py               # Pydantic models for data validation
-    ├── sound_classifier        # Executable Swift file for sound analysis
-    ├── sound_classifier.py     # Module for running the Swift sound analysis script
-    ├── sound_classifier.swift  # Swift source code for sound analysis
-    ├── transcribe.py           # Module for audio transcription
-    ├── utils.py                # Helper functions
-    └── youtube_downloader.py   # Module for downloading data from YouTube
+├── src/                     # Python pipeline modules and Swift laughter detector binary
+│   ├── main.py              # Entry point orchestrating download → transcription → analysis
+│   ├── youtube_downloader.py# Playlist and audio extraction helpers
+│   ├── transcribe.py        # parakeet-mlx transcription logic
+│   ├── sound_classifier.py  # Wrapper around the Swift SoundAnalysis executable (src/sound_classifier)
+│   ├── llm.py               # Gemini CLI integration for summaries and topic labels
+│   ├── database.py          # PostgreSQL access helpers (psycopg)
+│   ├── models.py            # Pydantic models validating playlist items and processing state
+│   ├── utils.py             # Shared helpers (logging, temp cleanup)
+│   └── config.py            # Centralised settings loaded from `.env`
+├── standup_project/         # dbt project for transformation, tests, and seeds
+├── initdb/                  # SQL initialization scripts executed by PostgreSQL container
+├── data/                    # Local cache for downloaded audio (ignored by Git)
+├── logs/                    # Runtime logs and scratch outputs (ignored by Git)
+├── docker-compose.yml       # Infrastructure stack (PostgreSQL, MinIO, bootstrap)
+├── pyproject.toml / uv.lock # Python dependency definitions managed by uv
+└── AGENTS.md                # Contributor guidelines
 ```
 
-## Setup and Launch
+## Processing Workflow
+1. Playlist metadata is fetched and normalised; entries persist to PostgreSQL.
+2. Audio is downloaded or retrieved from MinIO, then cached in `data/`.
+3. Transcriptions (`parakeet-mlx`) and laughter segments (SoundAnalysis Swift binary) are generated.
+4. Gemini summarises chapters and classifies topics, enriching the database rows.
+5. Each video row transitions to `process_status="finished"` once all artifacts exist.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository URL>
-    cd StandUP_project
-    ```
+Monitor progress via pipeline logs or by querying PostgreSQL for `process_status` values. MinIO retains raw audio under the `standup-project/data/audio` prefix.
 
-2.  **Create and configure the `.env` file:**
-    Create a `.env` file in the project root and fill it according to the following template:
-    ```env
-    # MinIO Configuration
-    MINIO_ROOT_USER=standup_project
-    MINIO_ROOT_PASSWORD=standup_project
-    MINIO_DOMAIN=localhost:9000
+## Analytics with dbt
+Run dbt inside the managed Python environment to build analytics models:
+```bash
+uv run dbt build --project-dir standup_project
+```
+Use `uv run dbt test --project-dir standup_project --select <model>` to validate specific transformations.
 
-    # PostgreSQL Configuration
-    POSTGRES_DB=standup_project
-    POSTGRES_USER=standup_project
-    POSTGRES_PASSWORD=standup_project
-    POSTGRES_HOST=localhost
-    POSTGRES_PORT=5432
-    ```
+## Troubleshooting
+- If downloads fail, confirm Safari is open and authenticated with YouTube; `yt-dlp` relies on its cookies.
+- Remove stale audio cache via the pipeline helper: `uv run python -c "import utils; utils.remove_audio_cache()"`.
+- Inspect `logs/` for run artifacts and `docker-compose logs <service>` for container diagnostics.
 
-3.  **Start services with Docker Compose:**
-    ```bash
-    docker-compose up -d
-    ```
-    This command will start containers with PostgreSQL and MinIO.
-
-4.  **Run the pipeline:**
-    Pass the YouTube playlist URL as a command-line argument (the URL must contain "...&list=..."):
-    ```bash
-    uv run ./src/main.py "https://www.youtube.com/watch?v=MaVc3dqiEI4&list=PLcQngyvNgfmLi9eyV9reNMqu-pbdKErKr"
-    ```
+## Contributing
+Follow the practices outlined in [`AGENTS.md`](AGENTS.md) for coding standards, testing expectations, and pull request etiquette.
