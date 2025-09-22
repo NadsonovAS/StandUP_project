@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: core_videos
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+          - unique
+
+  - name: core_transcript_segments
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('core_videos')
+              field: video_id
+
+  - name: core_llm_chapters
+    columns:
+      - name: chapter_id
+        tests:
+          - not_null
+      - name: video_id
+        tests:
+          - relationships:
+              to: ref('core_videos')
+              field: video_id
+
+  - name: core_llm_classifications
+    columns:
+      - name: chapter_id
+        tests:
+          - relationships:
+              to: ref('core_llm_chapters')
+              field: chapter_id
+      - name: category_id
+        tests:
+          - not_null
