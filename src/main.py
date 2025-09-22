@@ -5,14 +5,14 @@ from typing import Any, Callable
 from minio import Minio
 from pydantic import ValidationError
 
-import config
-import database
-import llm
-import sound_classifier
-import transcribe
-import utils
-import youtube_downloader
-from config import settings
+from config import Settings, VideoURLModel, get_settings
+from database import ProcessVideoRepository, get_db_connection
+from llm import GeminiClient, llm_classifier, llm_summary
+from models import ProcessVideo
+from sound_classifier import SoundClassifierClient
+from transcribe import ParakeetTranscriber
+from utils import remove_audio_cache
+from youtube_downloader import ObjectStorageClient, YoutubeDownloader
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -20,149 +20,222 @@ logging.basicConfig(
 
 
 def _ensure_and_update_db_field(
-    video_row: Any,
-    conn,
-    cursor,
+    video_row: ProcessVideo,
+    repository: ProcessVideoRepository,
     column_name: str,
     value_generator_func: Callable[[], Any],
+    *,
     json_type: bool = True,
+    allow_none: bool = False,
+    commit: Callable[[], None],
 ) -> None:
-    """
-    Ensures that a given column in the video_row is populated.
-    If the column is None, generate the value, update the object,
-    and persist it to the database.
-    """
+    """Populate a missing column by generating and persisting the value."""
     if getattr(video_row, column_name) is not None:
         return
 
-    new_value = value_generator_func()
-    setattr(video_row, column_name, new_value)
+    if video_row.video_id is None:
+        raise ValueError("Cannot update database without a video_id")
 
-    database.obj_to_db(
-        conn,
-        cursor,
-        column=column_name,
-        value=new_value,
-        where=video_row.video_id,
+    new_value = value_generator_func()
+    if new_value is None and not allow_none:
+        return
+
+    setattr(video_row, column_name, new_value)
+    repository.update_video_column(
+        video_row.video_id,
+        column_name,
+        new_value,
         json_type=json_type,
     )
+    commit()
 
 
-def ensure_video_metadata(video_row: Any, conn, cursor) -> None:
-    """Ensure the video metadata is downloaded and stored in the database."""
+def ensure_video_metadata(
+    video_row: ProcessVideo,
+    repository: ProcessVideoRepository,
+    downloader: YoutubeDownloader,
+    commit: Callable[[], None],
+) -> None:
+    if not video_row.video_url:
+        return
+
     _ensure_and_update_db_field(
         video_row,
-        conn,
-        cursor,
+        repository,
         "video_meta_json",
-        lambda: youtube_downloader.yt_video_extract_info(video_row.video_url),
+        lambda: downloader.extract_video_info(video_row.video_url),
+        commit=commit,
     )
 
 
 def ensure_audio_and_transcription(
-    video_row: Any, conn, cursor, minio_client: Minio
+    video_row: ProcessVideo,
+    repository: ProcessVideoRepository,
+    downloader: YoutubeDownloader,
+    transcriber: ParakeetTranscriber,
+    sound_classifier: SoundClassifierClient,
+    storage_client: ObjectStorageClient,
+    commit: Callable[[], None],
 ) -> None:
-    """Download audio, run transcription, and classify sound."""
-    if video_row.transcribe_json is None or video_row.sound_classifier_json is None:
-        video_row.audio_path = youtube_downloader.download_audio(
-            minio_client, video_row.video_url, video_row.video_title
-        )
+    if not video_row.video_url or not video_row.video_title:
+        return
 
-        _ensure_and_update_db_field(
-            video_row,
-            conn,
-            cursor,
-            "transcribe_json",
-            lambda: transcribe.transcribe_audio(video_row.audio_path),
-        )
+    needs_audio = (
+        video_row.transcribe_json is None or video_row.sound_classifier_json is None
+    )
+    if not needs_audio:
+        return
 
-        _ensure_and_update_db_field(
-            video_row,
-            conn,
-            cursor,
-            "sound_classifier_json",
-            lambda: sound_classifier.get_sound_classifier(video_row.audio_path),
-        )
+    audio_path = downloader.download_audio(
+        storage_client, video_row.video_url, video_row.video_title
+    )
+    video_row.audio_path = str(audio_path)
 
+    _ensure_and_update_db_field(
+        video_row,
+        repository,
+        "transcribe_json",
+        lambda: transcriber.transcribe(str(audio_path)),
+        commit=commit,
+    )
 
-def run_llm_tasks(video_row: Any, conn, cursor) -> None:
-    """Execute LLM tasks such as summarization and classification."""
-    if video_row.transcribe_json is not None:
-        _ensure_and_update_db_field(
-            video_row,
-            conn,
-            cursor,
-            "llm_chapter_json",
-            lambda: llm.llm_summary(video_row.transcribe_json),
-        )
-
-        _ensure_and_update_db_field(
-            video_row,
-            conn,
-            cursor,
-            "llm_classifier_json",
-            lambda: llm.llm_classifier(video_row.llm_chapter_json),
-        )
+    _ensure_and_update_db_field(
+        video_row,
+        repository,
+        "sound_classifier_json",
+        lambda: sound_classifier.classify(str(audio_path)),
+        commit=commit,
+    )
 
 
-def update_status(video_row: Any, conn, cursor) -> None:
-    """Update the processing status of the video if all tasks are completed."""
-    if all(
+def run_llm_tasks(
+    video_row: ProcessVideo,
+    repository: ProcessVideoRepository,
+    llm_client: GeminiClient,
+    commit: Callable[[], None],
+) -> None:
+    if not video_row.transcribe_json:
+        return
+
+    _ensure_and_update_db_field(
+        video_row,
+        repository,
+        "llm_chapter_json",
+        lambda: llm_summary(video_row.transcribe_json, client=llm_client),
+        allow_none=False,
+        commit=commit,
+    )
+
+    if not video_row.llm_chapter_json:
+        return
+
+    _ensure_and_update_db_field(
+        video_row,
+        repository,
+        "llm_classifier_json",
+        lambda: llm_classifier(video_row.llm_chapter_json, client=llm_client),
+        allow_none=False,
+        commit=commit,
+    )
+
+
+def update_status(
+    video_row: ProcessVideo,
+    repository: ProcessVideoRepository,
+    commit: Callable[[], None],
+) -> None:
+    completed = all(
         [
             video_row.video_meta_json,
             video_row.transcribe_json,
             video_row.llm_chapter_json,
             video_row.sound_classifier_json,
         ]
-    ):
+    )
+    if completed and video_row.video_id:
         video_row.process_status = "finished"
-        database.obj_to_db(
-            conn,
-            cursor,
-            column="process_status",
-            value=video_row.process_status,
-            where=video_row.video_id,
+        repository.update_video_column(
+            video_row.video_id,
+            "process_status",
+            video_row.process_status,
+            json_type=False,
         )
+        commit()
 
 
-def process_single_video(video_info: Any, conn, cursor, minio_client: Minio) -> None:
-    """Process a single video through the full pipeline."""
+def process_single_video(
+    video_info: ProcessVideo,
+    repository: ProcessVideoRepository,
+    *,
+    downloader: YoutubeDownloader,
+    transcriber: ParakeetTranscriber,
+    sound_classifier_client: SoundClassifierClient,
+    llm_client: GeminiClient,
+    storage_client: ObjectStorageClient,
+    commit: Callable[[], None],
+    settings: Settings,
+) -> None:
     try:
-        row_from_db = database.get_row_from_db(video_info, cursor)
+        if video_info.video_id is None:
+            return
 
-        if row_from_db:
-            logging.info("=" * 42)
-            logging.info("Starting processing for - %s", video_info.video_title)
+        row_from_db = repository.fetch_pending_video(video_info.video_id)
 
-            ensure_video_metadata(row_from_db, conn, cursor)
-            ensure_audio_and_transcription(row_from_db, conn, cursor, minio_client)
-            run_llm_tasks(row_from_db, conn, cursor)
-            update_status(row_from_db, conn, cursor)
-            utils.remove_audio_cache()
+        if not row_from_db:
+            return
 
-    except Exception as e:
-        logging.error("Error processing video %s: %s", video_info.video_id, e)
+        logging.info("=" * 42)
+        logging.info("Starting processing for - %s", video_info.video_title)
+
+        ensure_video_metadata(row_from_db, repository, downloader, commit)
+        ensure_audio_and_transcription(
+            row_from_db,
+            repository,
+            downloader,
+            transcriber,
+            sound_classifier_client,
+            storage_client,
+            commit,
+        )
+        run_llm_tasks(row_from_db, repository, llm_client, commit)
+        update_status(row_from_db, repository, commit)
+        remove_audio_cache(settings=settings)
+
+    except Exception as exc:  # noqa: BLE001
+        logging.error("Error processing video %s: %s", video_info.video_id, exc)
+        raise
 
 
-def process_playlist(youtube_url: str, conn, cursor, minio_client: Minio) -> None:
-    """
-    Video processing pipeline for a playlist.
-    Steps:
-    - Download playlist metadata
-    - Download video metadata
-    - Download audio
-    - Run transcription
-    - Extract topics
-    - Classify summary
-    - Extract laughter
-    """
-    playlist_info = youtube_downloader.yt_playlist_extract_info(youtube_url)
+def process_playlist(
+    youtube_url: str,
+    repository: ProcessVideoRepository,
+    *,
+    downloader: YoutubeDownloader,
+    transcriber: ParakeetTranscriber,
+    sound_classifier_client: SoundClassifierClient,
+    llm_client: GeminiClient,
+    storage_client: ObjectStorageClient,
+    commit: Callable[[], None],
+    settings: Settings,
+) -> None:
+    playlist_info = downloader.extract_playlist_info(youtube_url)
 
-    database.new_video_from_playlist_info_to_db(conn, cursor, playlist_info)
+    repository.insert_new_videos(playlist_info)
+    commit()
 
     for video in playlist_info:
         if video.video_title != "Private_video":
-            process_single_video(video, conn, cursor, minio_client)
+            process_single_video(
+                video,
+                repository,
+                downloader=downloader,
+                transcriber=transcriber,
+                sound_classifier_client=sound_classifier_client,
+                llm_client=llm_client,
+                storage_client=storage_client,
+                commit=commit,
+                settings=settings,
+            )
 
 
 def parse_args() -> argparse.Namespace:
@@ -176,12 +249,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Main entry point for the video processing pipeline."""
+    connection = None
     try:
         args = parse_args()
-        youtube_url = config.VideoURLModel(url=args.argument)
+        youtube_url = VideoURLModel(url=args.argument)
 
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
+        settings = get_settings()
+        connection = get_db_connection(settings=settings)
+        repository = ProcessVideoRepository(connection)
+
+        downloader = YoutubeDownloader(settings=settings)
+        transcriber = ParakeetTranscriber()
+        sound_classifier_client = SoundClassifierClient(settings=settings)
+        llm_client = GeminiClient()
 
         minio_client = Minio(
             settings.MINIO_DOMAIN,
@@ -190,17 +270,25 @@ def main() -> None:
             secure=False,
         )
 
-        process_playlist(str(youtube_url.url), conn, cursor, minio_client)
+        process_playlist(
+            str(youtube_url.url),
+            repository,
+            downloader=downloader,
+            transcriber=transcriber,
+            sound_classifier_client=sound_classifier_client,
+            llm_client=llm_client,
+            storage_client=minio_client,
+            commit=connection.commit,
+            settings=settings,
+        )
 
-    except ValidationError as e:
-        logging.error("URL validation error: %s", e)
+    except ValidationError as exc:
+        logging.error("URL validation error: %s", exc)
     except KeyboardInterrupt:
         logging.warning("Operation interrupted by user (KeyboardInterrupt)")
     finally:
-        if "cursor" in locals() and cursor:
-            cursor.close()
-        if "conn" in locals() and conn:
-            conn.close()
+        if connection:
+            connection.close()
 
 
 if __name__ == "__main__":

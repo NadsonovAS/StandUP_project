@@ -1,7 +1,10 @@
+from functools import lru_cache
 from pathlib import Path
+from typing import Iterator
 
+from contextlib import contextmanager
 from pydantic import BaseModel, HttpUrl
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class VideoURLModel(BaseModel):
@@ -9,10 +12,11 @@ class VideoURLModel(BaseModel):
 
 
 class Settings(BaseSettings):
-    class Config:
-        env_file = Path(__file__).parent.parent / ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).parent.parent / ".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+    )
 
     # === Project paths ===
     DATA_DIR: Path = Path("./data")
@@ -64,4 +68,27 @@ class Settings(BaseSettings):
     OVERLAP_FACTOR: float = 0.8
 
 
-settings = Settings()
+@lru_cache
+def _load_settings() -> Settings:
+    return Settings()
+
+
+def get_settings(*, refresh: bool = False, **overrides) -> Settings:
+    """Return application settings with optional runtime overrides."""
+    if refresh:
+        _load_settings.cache_clear()
+    settings = _load_settings()
+    if overrides:
+        return settings.model_copy(update=overrides)
+    return settings
+
+
+@contextmanager
+def override_settings(**overrides) -> Iterator[Settings]:
+    """Yield a settings instance with overrides without mutating global state."""
+    current = get_settings()
+    patched = current.model_copy(update=overrides)
+    try:
+        yield patched
+    finally:
+        pass

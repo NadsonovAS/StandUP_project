@@ -1,136 +1,106 @@
 import json
-import logging
-from typing import Any, List, Optional
+from typing import Any, Iterable, Optional, Sequence
 
 import psycopg
 
-from config import settings
+from config import Settings, get_settings
 from models import ProcessVideo
 from utils import try_except_with_log
 
 
 @try_except_with_log("Connecting to Postgres")
-def get_db_connection() -> psycopg.Connection:
-    """
-    Establish a connection to the Postgres database.
-
-    Returns:
-        psycopg.Connection: Active database connection.
-    """
-    conn = psycopg.connect(
-        host=settings.POSTGRES_HOST,
-        dbname=settings.POSTGRES_DB,
-        user=settings.POSTGRES_USER,
-        password=settings.POSTGRES_PASSWORD,
-        port=settings.POSTGRES_PORT,
+def get_db_connection(settings: Settings | None = None) -> psycopg.Connection:
+    """Establish a connection to Postgres using provided settings."""
+    resolved_settings = settings or get_settings()
+    return psycopg.connect(
+        host=resolved_settings.POSTGRES_HOST,
+        dbname=resolved_settings.POSTGRES_DB,
+        user=resolved_settings.POSTGRES_USER,
+        password=resolved_settings.POSTGRES_PASSWORD,
+        port=resolved_settings.POSTGRES_PORT,
     )
-    return conn
 
 
-@try_except_with_log()
-def get_row_from_db(video_obj: ProcessVideo, cursor) -> Optional[ProcessVideo]:
-    """
-    Retrieve a row from the database for a given video if not already processed.
+class ProcessVideoRepository:
+    """Data access layer for the standup_raw.process_video table."""
 
-    Args:
-        video_obj (ProcessVideo): Video object containing video_id.
-        cursor: Database cursor.
+    def __init__(self, connection: psycopg.Connection) -> None:
+        self._connection = connection
 
-    Returns:
-        Optional[ProcessVideo]: A ProcessVideo object if found, otherwise None.
-    """
-    cursor.execute(
-        """
-        SELECT * FROM standup_raw.process_video
-        WHERE video_id = %s AND process_status IS NULL
-        """,
-        (video_obj.video_id,),
-    )
-    row = cursor.fetchone()
-    if row:
-        columns = [desc[0] for desc in cursor.description]
-        row_dict = dict(zip(columns, row))
-        return ProcessVideo.model_validate(row_dict)
-    return None
+    def _row_to_model(self, row: Sequence[Any], columns: Sequence[str]) -> ProcessVideo:
+        payload = dict(zip(columns, row))
+        return ProcessVideo.model_validate(payload)
 
+    @try_except_with_log()
+    def fetch_pending_video(self, video_id: str) -> Optional[ProcessVideo]:
+        query = (
+            "SELECT * FROM standup_raw.process_video "
+            "WHERE video_id = %s AND process_status IS NULL"
+        )
+        with self._connection.cursor() as cursor:
+            cursor.execute(query, (video_id,))
+            record = cursor.fetchone()
+            if record is None:
+                return None
+            columns = [desc[0] for desc in cursor.description]
+            return self._row_to_model(record, columns)
 
-@try_except_with_log()
-def obj_to_db(
-    conn,
-    cursor,
-    column: str,
-    value: Any,
-    where: str,
-    json_type: bool = False,
-) -> None:
-    """
-    Update a specific column for a video row in the database.
-
-    Args:
-        conn: Active database connection.
-        cursor: Database cursor.
-        column (str): Column name to update.
-        value (Any): Value to set.
-        where (str): Video ID condition.
-        json_type (bool, optional): If True, serialize value to JSON. Defaults to False.
-    """
-    if json_type:
-        value = json.dumps(value)
-
-    cursor.execute(
-        f"""
-        UPDATE standup_raw.process_video
-        SET {column} = %s
-        WHERE video_id = %s
-        """,
-        (value, where),
-    )
-    conn.commit()
-
-
-@try_except_with_log()
-def new_video_from_playlist_info_to_db(
-    conn, cursor, playlist_info: List[ProcessVideo]
-) -> None:
-    """
-    Insert new videos from playlist metadata into the database if not already present.
-
-    Args:
-        conn: Active database connection.
-        cursor: Database cursor.
-        playlist_info (List[ProcessVideo]): List of video metadata objects.
-    """
-    all_video_ids = [row.video_id for row in playlist_info]
-
-    cursor.execute(
-        "SELECT * FROM standup_raw.process_video WHERE video_id = ANY(%s)",
-        (all_video_ids,),
-    )
-    existing_video_ids = {row[4] for row in cursor.fetchall()}
-
-    new_video_ids = set(all_video_ids) - existing_video_ids
-
-    if new_video_ids:
-        new_videos_to_insert = [v for v in playlist_info if v.video_id in new_video_ids]
-
-        logging.info("New videos to insert: %d", len(new_videos_to_insert))
-
-        for video_obj in new_videos_to_insert:
+    @try_except_with_log()
+    def update_video_column(
+        self,
+        video_id: str,
+        column: str,
+        value: Any,
+        *,
+        json_type: bool = False,
+    ) -> None:
+        payload = json.dumps(value) if json_type else value
+        with self._connection.cursor() as cursor:
             cursor.execute(
-                """
-                INSERT INTO standup_raw.process_video
-                (channel_id, channel_name, playlist_id, playlist_title,
-                 video_id, video_title, video_url)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    video_obj.channel_id,
-                    video_obj.channel_name,
-                    video_obj.playlist_id,
-                    video_obj.playlist_title,
-                    video_obj.video_id,
-                    video_obj.video_title,
-                    video_obj.video_url,
-                ),
+                f"UPDATE standup_raw.process_video SET {column} = %s WHERE video_id = %s",
+                (payload, video_id),
             )
-            conn.commit()
+
+    @try_except_with_log()
+    def insert_new_videos(self, playlist_info: Iterable[ProcessVideo]) -> int:
+        videos = list(playlist_info)
+        if not videos:
+            return 0
+
+        video_ids = [video.video_id for video in videos if video.video_id]
+        if not video_ids:
+            return 0
+
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT video_id FROM standup_raw.process_video WHERE video_id = ANY(%s)",
+                (video_ids,),
+            )
+            existing_ids = {row[0] for row in cursor.fetchall()}
+            new_videos = [video for video in videos if video.video_id not in existing_ids]
+
+            for video in new_videos:
+                cursor.execute(
+                    """
+                    INSERT INTO standup_raw.process_video (
+                        channel_id,
+                        channel_name,
+                        playlist_id,
+                        playlist_title,
+                        video_id,
+                        video_title,
+                        video_url
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        video.channel_id,
+                        video.channel_name,
+                        video.playlist_id,
+                        video.playlist_title,
+                        video.video_id,
+                        video.video_title,
+                        video.video_url,
+                    ),
+                )
+        return len(new_videos)

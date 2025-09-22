@@ -1,51 +1,11 @@
 import json
 import subprocess
+from typing import Any, Callable, Dict, Sequence
 
 from utils import try_except_with_log
 
 
-def run_gemini(prompt: str) -> dict | None:
-    current_prompt = prompt
-    for attempt in range(2):
-        result = subprocess.run(
-            # ["gemini", "-p", current_prompt],
-            ["gemini", "-p", current_prompt, "-m", "gemini-2.5-flash"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-
-        if result.returncode != 0:
-            print(f"Gemini CLI failed: {result.stderr}")
-            return None
-
-        llm_output = result.stdout.strip()
-
-        # Clean up markdown code blocks
-        if "```json" in llm_output:
-            llm_output = llm_output.split("```json")[1].split("```")[0].strip()
-        elif "```" in llm_output:
-            # Handle case where it's just wrapped in backticks without json marker
-            llm_output = llm_output.split("```")[1].split("```")[0].strip()
-
-        try:
-            summary_json = json.loads(llm_output)
-
-            return summary_json
-
-        except json.JSONDecodeError as e:
-            # Prepare for retry with corrective prompt
-            current_prompt = (
-                prompt
-                + f"Your previous response had a JSON formatting error: {e}.\n Here is the invalid response you provided:\n\n {llm_output} \n\n Please correct the JSON and provide the full, valid JSON object."
-            )
-
-    return None
-
-
-@try_except_with_log("Sending Gemini request for topic extraction")
-def llm_summary(transcribe_json):
-    prompt = """
+SUMMARY_PROMPT_TEMPLATE = """
 ### Role and Goal
 **You:** An AI expert-analyst specializing in structuring conversational content, such as stand-up comedy.
 **Your task:** Analyze the provided text and generate a single, valid JSON object that segments the text into main thematic blocks in accordance with all the rules listed below. Your output must contain **only** the JSON object and nothing else. Do not add any introductory phrases, explanations, or apologies, such as 'Here is the JSON you requested'.
@@ -67,52 +27,13 @@ def llm_summary(transcribe_json):
 - The output must be a **single JSON object**.
 - The root key must be "chapters", containing an array of objects.
 - Each object in the array must contain three keys: id (integer), theme (string), and summary (string).
-    
-**Example of Valid Output:**
-
-~~~
-{
-  "chapters": [
-    {
-      "id": 0,
-      "theme": "Advertising",
-      "summary": "Company: Standupclub.ru. The advertisement promotes the website for watching stand-up comedy shows, highlighting the availability of new releases and ad-free viewing."
-    },
-    {
-      "id": 15,
-      "theme": "Travel Mishaps and Unexpected Situations",
-      "summary": "The comedian recounts a series of travel mishaps, starting with a gig in Pyatigorsk where the venue was changed from a club to a wedding hall, causing confusion for attendees..."
-    }
-  ]
-}
-~~~
 
 ### Text for Analysis:
 
 """
 
-    remove_keys = {"start", "end"}
-    filter_transcribe_json = {
-        key: {k: v for k, v in value.items() if k not in remove_keys}
-        for key, value in transcribe_json.items()
-    }
-    base_prompt = prompt + str(filter_transcribe_json)
 
-    # Get Gemini Respone
-    gemini_response = run_gemini(base_prompt)
-
-    # Add end_id for each chapter
-    end_id = max(map(int, filter_transcribe_json.keys()))
-    for i in gemini_response["chapters"][::-1]:
-        i["end_id"] = end_id
-        end_id = i["id"] - 1
-
-    return gemini_response
-
-
-@try_except_with_log("Sending Gemini request for topic classification")
-def llm_classifier(llm_chapter_json):
-    prompt = """
+CLASSIFIER_PROMPT_TEMPLATE = """
 **Task:** Your task is to analyze the provided summaries and generate a single, valid JSON object that classifies each summary according to the given categories. The JSON output should be the only thing you generate.
 
 **Role:** You are a strict and precise classification system for stand-up comedy content.
@@ -244,32 +165,111 @@ def llm_classifier(llm_chapter_json):
   }
 ]
 
-**Example of a valid output:**
-~~~json
-{
-  "classifications": [
-    {
-      "id": 0,
-      "reason": "The summary explicitly describes a promotion for Kozel non-alcoholic beer, which is a food and beverage product.",
-      "main_category": "Advertising"
-      "subcategory": "Food & beverages",
-    },
-    {
-      "id": 29,
-      "reason": "The narrative is centered around a car theft, a police report, the recovery of stolen items, and the eventual capture of the criminals, which directly relates to themes of crime and the justice system.",
-      "main_category": "Politics & Society"
-      "subcategory": "Law, crime & justice",
-    }
-  ]
-}
-~~~
-
 **Summaries Data to Classify:**
 
 """
 
-    for chapter in llm_chapter_json.get("chapters", []):
-        chapter.pop("end_id", None)
 
-    base_prompt = prompt + str(llm_chapter_json)
-    return run_gemini(base_prompt)
+def default_run_command(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+
+
+def clean_json_output(llm_output: str) -> str:
+    if "```json" in llm_output:
+        return llm_output.split("```json", 1)[1].split("```", 1)[0].strip()
+    if "```" in llm_output:
+        return llm_output.split("```", 1)[1].split("```", 1)[0].strip()
+    return llm_output.strip()
+
+
+class GeminiClient:
+    """Lightweight wrapper around the Gemini CLI for easier testing."""
+
+    def __init__(
+        self,
+        *,
+        run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] = default_run_command,
+        model: str = "gemini-2.5-flash",
+        max_attempts: int = 2,
+        command_builder: Callable[[str, str], Sequence[str]] | None = None,
+    ) -> None:
+        self._run_command = run_command
+        self._model = model
+        self._max_attempts = max_attempts
+        self._command_builder = command_builder or self._default_command_builder
+
+    def _default_command_builder(self, prompt: str, model: str) -> Sequence[str]:
+        return ["gemini", "-p", prompt, "-m", model]
+
+    @try_except_with_log("Executing Gemini CLI request")
+    def request(self, prompt: str) -> Dict[str, Any] | None:
+        current_prompt = prompt
+        for _ in range(self._max_attempts):
+            result = self._run_command(self._command_builder(current_prompt, self._model))
+            if result.returncode != 0:
+                raise RuntimeError(f"Gemini CLI failed: {result.stderr}")
+
+            llm_output = clean_json_output(result.stdout)
+            try:
+                return json.loads(llm_output)
+            except json.JSONDecodeError as exc:
+                current_prompt = (
+                    prompt
+                    + "Your previous response had a JSON formatting error: "
+                    + f"{exc}.\n Here is the invalid response you provided:\n\n {llm_output} "
+                    + "\n\n Please correct the JSON and provide the full, valid JSON object."
+                )
+        return None
+
+
+def build_summary_prompt(transcribe_json: Dict[str, Dict[str, Any]]) -> str:
+    remove_keys = {"start", "end"}
+    filtered = {
+        key: {k: v for k, v in value.items() if k not in remove_keys}
+        for key, value in transcribe_json.items()
+    }
+    return SUMMARY_PROMPT_TEMPLATE + str(filtered)
+
+
+def build_classifier_prompt(llm_chapter_json: Dict[str, Any]) -> str:
+    sanitized = {
+        "chapters": [
+            {k: v for k, v in chapter.items() if k != "end_id"}
+            for chapter in llm_chapter_json.get("chapters", [])
+        ]
+    }
+    return CLASSIFIER_PROMPT_TEMPLATE + str(sanitized)
+
+
+@try_except_with_log("Sending Gemini request for topic extraction")
+def llm_summary(
+    transcribe_json: Dict[str, Dict[str, Any]],
+    *,
+    client: GeminiClient | None = None,
+) -> Dict[str, Any] | None:
+    active_client = client or GeminiClient()
+    response = active_client.request(build_summary_prompt(transcribe_json))
+    if response is None:
+        return None
+
+    end_id = max(map(int, transcribe_json.keys())) if transcribe_json else 0
+    for chapter in reversed(response.get("chapters", [])):
+        chapter["end_id"] = end_id
+        end_id = chapter["id"] - 1
+    return response
+
+
+@try_except_with_log("Sending Gemini request for topic classification")
+def llm_classifier(
+    llm_chapter_json: Dict[str, Any],
+    *,
+    client: GeminiClient | None = None,
+) -> Dict[str, Any] | None:
+    active_client = client or GeminiClient()
+    response = active_client.request(build_classifier_prompt(llm_chapter_json))
+    return response

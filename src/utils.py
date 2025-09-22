@@ -1,16 +1,16 @@
 import logging
-
-# import traceback
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from config import settings
+from config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
 
-def try_except_with_log(log_message: Optional[str] = None) -> Callable:
+def try_except_with_log(
+    log_message: Optional[str] = None, *, suppress: bool = False
+) -> Callable:
     """
     Decorator for logging exceptions in wrapped functions.
 
@@ -30,20 +30,23 @@ def try_except_with_log(log_message: Optional[str] = None) -> Callable:
                 return func(*args, **kwargs)
             except Exception as e:
                 logger.error("Error in %s: %s", func.__name__, e)
-                # traceback.print_exc()
+                if suppress:
+                    return None
+                raise
 
         return wrapper
 
     return decorator
 
 
-def remove_audio_cache() -> None:
+def remove_audio_cache(settings: Optional[Settings] = None) -> None:
     """
     Remove all files in the data directory specified by settings.DATA_DIR.
 
     Logs each file removal. If a file cannot be removed, logs a warning.
     """
-    folder: Path = settings.DATA_DIR
+    resolved_settings = settings or get_settings()
+    folder: Path = resolved_settings.DATA_DIR
 
     for file in folder.iterdir():
         if file.is_file():

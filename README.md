@@ -95,6 +95,3 @@ Use `uv run dbt test --project-dir standup_project --select <model>` to validate
 - If downloads fail, confirm Safari is open and authenticated with YouTube; `yt-dlp` relies on its cookies.
 - Remove stale audio cache via the pipeline helper: `uv run python -c "import utils; utils.remove_audio_cache()"`.
 - Inspect `logs/` for run artifacts and `docker-compose logs <service>` for container diagnostics.
-
-## Contributing
-Follow the practices outlined in [`AGENTS.md`](AGENTS.md) for coding standards, testing expectations, and pull request etiquette.

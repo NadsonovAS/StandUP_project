@@ -1,14 +1,33 @@
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Callable, Dict, Iterable, List, Protocol
 
 import yt_dlp
-from minio import Minio
 from minio.error import S3Error
 
-from config import settings
+from config import Settings, get_settings
 from models import ProcessVideo
 from utils import try_except_with_log
+
+
+class ObjectStorageClient(Protocol):
+    def stat_object(self, bucket_name: str, object_name: str) -> Any:
+        ...
+
+    def fget_object(self, bucket_name: str, object_name: str, file_path: str) -> Any:
+        ...
+
+    def fput_object(self, bucket_name: str, object_name: str, file_path: str) -> Any:
+        ...
+
+
+def build_audio_artifacts(video_title: str, settings: Settings) -> tuple[Path, str, str]:
+    """Return local path, object name, and template for audio downloads."""
+    audio_filename = f"{video_title}.opus"
+    local_audio_path = settings.DATA_DIR / audio_filename
+    object_name = f"{settings.MINIO_AUDIO_PATH}/{audio_filename}"
+    local_audio_path_template = str(settings.DATA_DIR / video_title)
+    return local_audio_path, object_name, local_audio_path_template
 
 
 @try_except_with_log()
@@ -26,116 +45,100 @@ def normalize_title(title: str) -> str:
     return normalized.strip("_")
 
 
-@try_except_with_log("Downloading video metadata")
-def yt_video_extract_info(video_url: str) -> Dict[str, int]:
-    """
-    Extracts metadata for a single YouTube video without downloading it.
+class YoutubeDownloader:
+    """Wrapper around yt-dlp operations to enable dependency injection."""
 
-    Args:
-        video_url (str): The URL of the YouTube video.
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        ydl_factory: Callable[[dict], yt_dlp.YoutubeDL] = yt_dlp.YoutubeDL,
+    ) -> None:
+        self._settings = settings or get_settings()
+        self._ydl_factory = ydl_factory
 
-    Returns:
-        Dict[str, int]: A filtered dictionary with selected metadata fields.
-    """
-    with yt_dlp.YoutubeDL(settings.YDL_PLAYLIST_OPTS) as ydl:
-        video_info = ydl.extract_info(video_url, download=False)
+    def _with_client(self, options: dict, callback: Callable[[yt_dlp.YoutubeDL], Any]) -> Any:
+        with self._ydl_factory(options) as client:
+            return callback(client)
 
-        keys_to_extract = [
-            "duration",
-            "like_count",
-            "view_count",
-            "comment_count",
-            "upload_date",
-        ]
-        return {key: video_info[key] for key in keys_to_extract if key in video_info}
+    def extract_video_info(self, video_url: str) -> Dict[str, int]:
+        """Extract metadata for a single YouTube video without downloading it."""
 
+        def _extract(client: yt_dlp.YoutubeDL) -> Dict[str, int]:
+            video_info = client.extract_info(video_url, download=False)
+            keys_to_extract = [
+                "duration",
+                "like_count",
+                "view_count",
+                "comment_count",
+                "upload_date",
+            ]
+            return {key: video_info[key] for key in keys_to_extract if key in video_info}
 
-@try_except_with_log("Downloading playlist metadata")
-def yt_playlist_extract_info(youtube_url: str) -> List[ProcessVideo]:
-    """
-    Extracts metadata for a YouTube playlist without downloading videos.
+        return self._with_client(self._settings.YDL_PLAYLIST_OPTS, _extract)
 
-    Args:
-        youtube_url (str): The URL of the YouTube playlist.
+    def extract_playlist_info(self, youtube_url: str) -> List[ProcessVideo]:
+        """Extract playlist metadata and return validated ProcessVideo entries."""
 
-    Returns:
-        List[ProcessVideo]: A list of validated ProcessVideo objects for each video.
-    """
-    with yt_dlp.YoutubeDL(settings.YDL_PLAYLIST_OPTS) as ydl:
-        all_playlist_info = ydl.extract_info(youtube_url)
+        def _extract(client: yt_dlp.YoutubeDL) -> List[ProcessVideo]:
+            all_playlist_info = client.extract_info(youtube_url)
+            playlist_id = all_playlist_info.get("id")
+            playlist_title = all_playlist_info.get("title")
+            entries: Iterable[dict[str, Any]] = all_playlist_info.get("entries", [])
 
-    playlist_id = all_playlist_info.get("id")
-    playlist_title = all_playlist_info.get("title")
-    entries = all_playlist_info.get("entries", [])
+            playlist_info: List[ProcessVideo] = []
+            for entry in entries:
+                video_id = entry.get("id")
+                video_title = entry.get("title")
+                normalized_title = (
+                    normalize_title(video_title) if video_title else f"video_{video_id}"
+                )
 
-    playlist_info: List[ProcessVideo] = []
+                video_data = {
+                    "channel_id": entry.get("channel_id"),
+                    "channel_name": entry.get("channel"),
+                    "playlist_id": playlist_id,
+                    "playlist_title": playlist_title,
+                    "video_id": video_id,
+                    "video_title": normalized_title,
+                    "video_url": entry.get("url"),
+                }
 
-    for entry in entries:
-        video_id = entry.get("id")
-        video_title = entry.get("title")
-        normalized_title = (
-            normalize_title(video_title) if video_title else f"video_{video_id}"
+                playlist_info.append(ProcessVideo(**video_data))
+            return playlist_info
+
+        return self._with_client(self._settings.YDL_PLAYLIST_OPTS, _extract)
+
+    def download_audio(
+        self,
+        storage_client: ObjectStorageClient,
+        video_url: str,
+        video_title: str,
+    ) -> Path:
+        """Download audio, leveraging object storage for caching."""
+        local_audio_path, object_name, local_audio_template = build_audio_artifacts(
+            video_title, self._settings
         )
 
-        video_data = {
-            "channel_id": entry.get("channel_id"),
-            "channel_name": entry.get("channel"),
-            "playlist_id": playlist_id,
-            "playlist_title": playlist_title,
-            "video_id": video_id,
-            "video_title": normalized_title,
-            "video_url": entry.get("url"),
-        }
+        try:
+            storage_client.stat_object(self._settings.MINIO_AUDIO_BUCKET, object_name)
+            if not local_audio_path.exists():
+                storage_client.fget_object(
+                    self._settings.MINIO_AUDIO_BUCKET, object_name, str(local_audio_path)
+                )
+            return local_audio_path
+        except S3Error as error:
+            if error.code != "NoSuchKey":
+                raise
 
-        video_obj = ProcessVideo(**video_data)
-        playlist_info.append(video_obj)
+        download_opts = self._settings.YDL_DOWNLOAD_OPTS.copy()
+        download_opts["outtmpl"] = local_audio_template
 
-    return playlist_info
+        def _download(client: yt_dlp.YoutubeDL) -> None:
+            client.download([video_url])
 
+        self._with_client(download_opts, _download)
 
-@try_except_with_log("Downloading audio")
-def download_audio(minio_client: Minio, video_url: str, video_title: str) -> Path:
-    """
-    Downloads audio from YouTube if not already present in MinIO, saves it locally,
-    uploads it to MinIO, and returns the local file path.
-
-    Args:
-        minio_client (Minio): MinIO client instance.
-        video_url (str): The URL of the YouTube video.
-        video_title (str): The normalized title used for file naming.
-
-    Returns:
-        Path: The local path to the downloaded audio file.
-    """
-    audio_filename = f"{video_title}.opus"
-    local_audio_path = settings.DATA_DIR / audio_filename
-    object_name = f"{settings.MINIO_AUDIO_PATH}/{audio_filename}"
-    local_audio_path_template = str(settings.DATA_DIR / video_title)
-
-    # Check MinIO for existing object
-    try:
-        minio_client.stat_object(settings.MINIO_AUDIO_BUCKET, object_name)
-        if not local_audio_path.exists():
-            minio_client.fget_object(
-                settings.MINIO_AUDIO_BUCKET,
-                object_name,
-                str(local_audio_path),
-            )
+        storage_client.fput_object(
+            self._settings.MINIO_AUDIO_BUCKET, object_name, str(local_audio_path)
+        )
         return local_audio_path
-    except S3Error as e:
-        if e.code != "NoSuchKey":
-            raise
-
-    # If not found in MinIO, download via yt-dlp
-    ydl_opts = settings.YDL_DOWNLOAD_OPTS.copy()
-    ydl_opts["outtmpl"] = local_audio_path_template
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video_url])
-
-    # Upload new file to MinIO
-    minio_client.fput_object(
-        settings.MINIO_AUDIO_BUCKET, object_name, str(local_audio_path)
-    )
-
-    return local_audio_path
