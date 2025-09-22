@@ -23,6 +23,7 @@ dist/
 *.drawio
 *.bkp
 *.dtmp
+AGENTS.md
 
 # IDE/project settings
 .vscode/
