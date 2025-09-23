@@ -49,7 +49,7 @@ StandUP automates the ingestion and analysis of YouTube comedy shows on Apple Si
    This launches PostgreSQL, MinIO, and a helper container that bootstraps the `standup-project` bucket.
 5. **Run the ingestion pipeline**
    ```bash
-   uv run src/main.py "https://www.youtube.com/watch?v=MaVc3dqiEI4&list=PLcQngyvNgfmLi9eyV9reNMqu-pbdKErKr"
+   uv run python src/main.py "https://www.youtube.com/watch?v=MaVc3dqiEI4&list=PLcQngyvNgfmLi9eyV9reNMqu-pbdKErKr"
    ```
    Use any playlist URL that contains the `list=` parameter. The script processes each video, updates database status flags, and leaves cached audio in `data/`.
 
@@ -71,8 +71,7 @@ StandUP_project
 ├── data/                    # Local cache for downloaded audio (ignored by Git)
 ├── logs/                    # Runtime logs and scratch outputs (ignored by Git)
 ├── docker-compose.yml       # Infrastructure stack (PostgreSQL, MinIO, bootstrap)
-├── pyproject.toml / uv.lock # Python dependency definitions managed by uv
-└── AGENTS.md                # Contributor guidelines
+└── pyproject.toml           # Python dependency definitions managed by uv
 ```
 
 ## Processing Workflow
@@ -90,6 +89,16 @@ Run dbt inside the managed Python environment to build analytics models:
 uv run dbt build --project-dir standup_project
 ```
 Use `uv run dbt test --project-dir standup_project --select <model>` to validate specific transformations.
+
+## Development
+
+Run the automated checks locally before opening a pull request:
+
+```bash
+uv run pytest
+```
+
+The test suite exercises the downloader, transcription pipeline, Gemini integration, and dbt orchestration helpers.
 
 ## Troubleshooting
 - If downloads fail, confirm Safari is open and authenticated with YouTube; `yt-dlp` relies on its cookies.

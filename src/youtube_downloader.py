@@ -42,7 +42,14 @@ def normalize_title(title: str) -> str:
     """
     normalized = re.sub(r"[^\w\dа-яА-ЯёЁ]+", "_", title)
     normalized = re.sub(r"__+", "_", normalized)
-    return normalized.strip("_")
+    sanitized = normalized.strip("_")
+
+    # yt-dlp occasionally yields playlist items whose titles contain only
+    # punctuation or whitespace (for example, "---"). After normalization this
+    # would produce an empty string which later becomes an invalid filename like
+    # ".opus".  Returning a stable fallback ensures we always generate a
+    # meaningful object storage key and local cache path.
+    return sanitized or "untitled"
 
 
 class YoutubeDownloader:
