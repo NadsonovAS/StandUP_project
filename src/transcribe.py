@@ -1,6 +1,21 @@
 from typing import Any, Callable, Dict, Iterable, Protocol
 
-from parakeet_mlx import from_pretrained
+try:  # pragma: no cover - exercised indirectly via pipeline tests
+    from parakeet_mlx import from_pretrained as _parakeet_from_pretrained
+except ImportError as exc:  # pragma: no cover - executed in CI environment
+    _PARAKEET_IMPORT_ERROR = exc
+
+    def from_pretrained(*args: Any, **kwargs: Any) -> Any:
+        """Fallback shim raising a helpful error when parakeet_mlx is unavailable."""
+
+        raise ImportError(
+            "parakeet_mlx is required to load the default Parakeet model. "
+            "Provide a custom model_loader to ParakeetTranscriber() to run without it."
+        ) from exc
+
+else:
+    _PARAKEET_IMPORT_ERROR = None
+    from_pretrained = _parakeet_from_pretrained
 
 from utils import try_except_with_log
 
