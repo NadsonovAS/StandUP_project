@@ -1,10 +1,12 @@
 import argparse
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 from minio import Minio
 from pydantic import ValidationError
 
+from dbt_pipeline import DbtExecutionError, DbtPipeline
 from config import Settings, VideoURLModel, get_settings
 from database import ProcessVideoRepository, get_db_connection
 from llm import GeminiClient, llm_classifier, llm_summary
@@ -163,6 +165,45 @@ def update_status(
         commit()
 
 
+def trigger_dbt_pipeline_after_video(
+    dbt_pipeline: DbtPipeline | None,
+    video: ProcessVideo,
+) -> None:
+    if dbt_pipeline is None:
+        return
+
+    video_identifier = video.video_id or video.video_title or "<unknown>"
+    logging.info(
+        "Triggering dbt pipeline after processing video %s",
+        video_identifier,
+    )
+
+    try:
+        dbt_pipeline.run()
+        logging.info(
+            "dbt pipeline completed successfully for video %s",
+            video_identifier,
+        )
+    except DbtExecutionError as exc:
+        logging.error(
+            "dbt pipeline failed for video %s: %s",
+            video_identifier,
+            exc,
+        )
+    except FileNotFoundError as exc:
+        logging.error(
+            "dbt executable not found when running pipeline for video %s: %s",
+            video_identifier,
+            exc,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logging.error(
+            "Unexpected error when running dbt pipeline for video %s: %s",
+            video_identifier,
+            exc,
+        )
+
+
 def process_single_video(
     video_info: ProcessVideo,
     repository: ProcessVideoRepository,
@@ -217,6 +258,7 @@ def process_playlist(
     storage_client: ObjectStorageClient,
     commit: Callable[[], None],
     settings: Settings,
+    dbt_pipeline: DbtPipeline | None = None,
 ) -> None:
     playlist_info = downloader.extract_playlist_info(youtube_url)
 
@@ -236,6 +278,7 @@ def process_playlist(
                 commit=commit,
                 settings=settings,
             )
+            trigger_dbt_pipeline_after_video(dbt_pipeline, video)
 
 
 def parse_args() -> argparse.Namespace:
@@ -263,6 +306,20 @@ def main() -> None:
         sound_classifier_client = SoundClassifierClient(settings=settings)
         llm_client = GeminiClient()
 
+        project_root = Path(__file__).resolve().parent.parent
+        dbt_project_dir = project_root / "standup_project"
+        dbt_pipeline: DbtPipeline | None = None
+        try:
+            if dbt_project_dir.exists():
+                dbt_pipeline = DbtPipeline(project_dir=dbt_project_dir)
+            else:
+                logging.warning(
+                    "dbt project directory %s not found. Skipping dbt integration.",
+                    dbt_project_dir,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logging.error("Failed to initialise dbt pipeline: %s", exc)
+
         minio_client = Minio(
             settings.MINIO_DOMAIN,
             access_key=settings.MINIO_ROOT_USER,
@@ -280,6 +337,7 @@ def main() -> None:
             storage_client=minio_client,
             commit=connection.commit,
             settings=settings,
+            dbt_pipeline=dbt_pipeline,
         )
 
     except ValidationError as exc:
