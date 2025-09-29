@@ -1,12 +1,13 @@
 import argparse
 import logging
+import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
 from minio import Minio
 from pydantic import ValidationError
+from yt_dlp.utils import DownloadError, ExtractorError
 
-from dbt_pipeline import DbtExecutionError, DbtPipeline
 from config import Settings, VideoURLModel, get_settings
 from database import ProcessVideoRepository, get_db_connection
 from llm import GeminiClient, llm_classifier, llm_summary
@@ -21,7 +22,7 @@ logging.basicConfig(
 )
 
 
-def _ensure_and_update_db_field(
+def ensure_and_update_db_field(
     video_row: ProcessVideo,
     repository: ProcessVideoRepository,
     column_name: str,
@@ -61,7 +62,7 @@ def ensure_video_metadata(
     if not video_row.video_url:
         return
 
-    _ensure_and_update_db_field(
+    ensure_and_update_db_field(
         video_row,
         repository,
         "video_meta_json",
@@ -93,7 +94,7 @@ def ensure_audio_and_transcription(
     )
     video_row.audio_path = str(audio_path)
 
-    _ensure_and_update_db_field(
+    ensure_and_update_db_field(
         video_row,
         repository,
         "transcribe_json",
@@ -101,7 +102,7 @@ def ensure_audio_and_transcription(
         commit=commit,
     )
 
-    _ensure_and_update_db_field(
+    ensure_and_update_db_field(
         video_row,
         repository,
         "sound_classifier_json",
@@ -119,7 +120,7 @@ def run_llm_tasks(
     if not video_row.transcribe_json:
         return
 
-    _ensure_and_update_db_field(
+    ensure_and_update_db_field(
         video_row,
         repository,
         "llm_chapter_json",
@@ -131,7 +132,7 @@ def run_llm_tasks(
     if not video_row.llm_chapter_json:
         return
 
-    _ensure_and_update_db_field(
+    ensure_and_update_db_field(
         video_row,
         repository,
         "llm_classifier_json",
@@ -166,10 +167,10 @@ def update_status(
 
 
 def trigger_dbt_pipeline_after_video(
-    dbt_pipeline: DbtPipeline | None,
+    dbt_project_dir: Path | None,
     video: ProcessVideo,
 ) -> None:
-    if dbt_pipeline is None:
+    if dbt_project_dir is None:
         return
 
     video_identifier = video.video_id or video.video_title or "<unknown>"
@@ -178,30 +179,51 @@ def trigger_dbt_pipeline_after_video(
         video_identifier,
     )
 
+    command = (
+        "uv",
+        "run",
+        "dbt",
+        "run",
+        "--project-dir",
+        str(dbt_project_dir),
+    )
+
     try:
-        dbt_pipeline.run()
-        logging.info(
-            "dbt pipeline completed successfully for video %s",
-            video_identifier,
-        )
-    except DbtExecutionError as exc:
-        logging.error(
-            "dbt pipeline failed for video %s: %s",
-            video_identifier,
-            exc,
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
         )
     except FileNotFoundError as exc:
         logging.error(
-            "dbt executable not found when running pipeline for video %s: %s",
+            "dbt invocation failed for video %s: %s",
             video_identifier,
             exc,
         )
+        return
     except Exception as exc:  # noqa: BLE001
         logging.error(
-            "Unexpected error when running dbt pipeline for video %s: %s",
+            "Unexpected error when running dbt for video %s: %s",
             video_identifier,
             exc,
         )
+        return
+
+    if result.returncode != 0:
+        logging.error(
+            "dbt run failed for video %s (exit code %s)\nStdout: %s\nStderr: %s",
+            video_identifier,
+            result.returncode,
+            result.stdout.strip(),
+            result.stderr.strip(),
+        )
+        return
+
+    logging.info(
+        "dbt pipeline completed successfully for video %s",
+        video_identifier,
+    )
 
 
 def process_single_video(
@@ -242,6 +264,8 @@ def process_single_video(
         update_status(row_from_db, repository, commit)
         remove_audio_cache(settings=settings)
 
+    except (DownloadError, ExtractorError) as exc:
+        logging.warning("Skipping unavailable video %s: %s", video_info.video_id, exc)
     except Exception as exc:  # noqa: BLE001
         logging.error("Error processing video %s: %s", video_info.video_id, exc)
         raise
@@ -258,7 +282,7 @@ def process_playlist(
     storage_client: ObjectStorageClient,
     commit: Callable[[], None],
     settings: Settings,
-    dbt_pipeline: DbtPipeline | None = None,
+    dbt_project_dir: Path | None = None,
 ) -> None:
     playlist_info = downloader.extract_playlist_info(youtube_url)
 
@@ -266,19 +290,18 @@ def process_playlist(
     commit()
 
     for video in playlist_info:
-        if video.video_title != "Private_video":
-            process_single_video(
-                video,
-                repository,
-                downloader=downloader,
-                transcriber=transcriber,
-                sound_classifier_client=sound_classifier_client,
-                llm_client=llm_client,
-                storage_client=storage_client,
-                commit=commit,
-                settings=settings,
-            )
-            trigger_dbt_pipeline_after_video(dbt_pipeline, video)
+        process_single_video(
+            video,
+            repository,
+            downloader=downloader,
+            transcriber=transcriber,
+            sound_classifier_client=sound_classifier_client,
+            llm_client=llm_client,
+            storage_client=storage_client,
+            commit=commit,
+            settings=settings,
+        )
+        # trigger_dbt_pipeline_after_video(dbt_project_dir, video)
 
 
 def parse_args() -> argparse.Namespace:
@@ -307,18 +330,13 @@ def main() -> None:
         llm_client = GeminiClient()
 
         project_root = Path(__file__).resolve().parent.parent
-        dbt_project_dir = project_root / "standup_project"
-        dbt_pipeline: DbtPipeline | None = None
-        try:
-            if dbt_project_dir.exists():
-                dbt_pipeline = DbtPipeline(project_dir=dbt_project_dir)
-            else:
-                logging.warning(
-                    "dbt project directory %s not found. Skipping dbt integration.",
-                    dbt_project_dir,
-                )
-        except Exception as exc:  # noqa: BLE001
-            logging.error("Failed to initialise dbt pipeline: %s", exc)
+        dbt_project_dir: Path | None = project_root / "standup_project"
+        if not dbt_project_dir.exists():
+            logging.warning(
+                "dbt project directory %s not found. Skipping dbt integration.",
+                dbt_project_dir,
+            )
+            dbt_project_dir = None
 
         minio_client = Minio(
             settings.MINIO_DOMAIN,
@@ -337,7 +355,7 @@ def main() -> None:
             storage_client=minio_client,
             commit=connection.commit,
             settings=settings,
-            dbt_pipeline=dbt_pipeline,
+            dbt_project_dir=dbt_project_dir,
         )
 
     except ValidationError as exc:

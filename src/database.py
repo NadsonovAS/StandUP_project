@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any, Iterable, Optional, Sequence
 
 import psycopg
@@ -78,6 +79,8 @@ class ProcessVideoRepository:
             )
             existing_ids = {row[0] for row in cursor.fetchall()}
             new_videos = [video for video in videos if video.video_id not in existing_ids]
+
+            logging.info(f"Number of new video - {len(new_videos)}")
 
             for video in new_videos:
                 cursor.execute(

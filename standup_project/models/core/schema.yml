@@ -1,0 +1,139 @@
+version: 2
+
+models:
+  - name: core_channels
+    columns:
+      - name: channel_id
+        tests:
+          - not_null
+          - unique
+      - name: channel_name
+        tests:
+          - not_null
+
+  - name: core_playlists
+    columns:
+      - name: playlist_id
+        tests:
+          - not_null
+          - unique
+
+  - name: core_videos
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+          - unique
+      - name: playlist_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('core_playlists')
+                field: playlist_id
+      - name: channel_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('core_channels')
+                field: channel_id
+
+  - name: core_transcript_segments
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_videos')
+                field: video_id
+      - name: segment_id
+        tests:
+          - not_null
+
+  - name: core_llm_chapters
+    columns:
+      - name: chapter_id
+        tests:
+          - not_null
+          - unique
+      - name: video_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_videos')
+                field: video_id
+      - name: start_segment_id
+        tests:
+          - not_null
+      - name: end_segment_id
+        tests:
+          - not_null
+
+  - name: core_llm_categories
+    columns:
+      - name: category_id
+        tests:
+          - not_null
+          - unique
+      - name: main_category
+        tests:
+          - not_null
+          - unique
+
+  - name: core_llm_subcategories
+    columns:
+      - name: subcategory_id
+        tests:
+          - not_null
+          - unique
+      - name: category_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_llm_categories')
+                field: category_id
+      - name: subcategory
+        tests:
+          - not_null
+
+  - name: core_llm_classifications
+    columns:
+      - name: classification_id
+        tests:
+          - not_null
+          - unique
+      - name: chapter_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_llm_chapters')
+                field: chapter_id
+      - name: category_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_llm_categories')
+                field: category_id
+      - name: subcategory_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('core_llm_subcategories')
+                field: subcategory_id
+
+  - name: core_sound_features
+    columns:
+      - name: video_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_videos')
+                field: video_id
+      - name: time_offset
+        tests:
+          - not_null

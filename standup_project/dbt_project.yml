@@ -31,7 +31,4 @@ models:
       +materialized: view
     core:
       +schema: standup_core
-      +materialized: table
-    mart:
-      +schema: standup_mart
-      +materialized: view
+      +materialized: incremental

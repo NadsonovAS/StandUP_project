@@ -15,11 +15,4 @@ dependencies = [
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "yt-dlp>=2025.8.27",
-    "pytest>=8.3.3",
-    # "jupyter>=1.1.1",
-    # "pandas>=2.3.2",
-    # "polars>=1.33.1",
-    # "sqlalchemy>=2.0.43",
-    # "connectorx>=0.4.4",
-    # "pyarrow>=21.0.0",
 ]

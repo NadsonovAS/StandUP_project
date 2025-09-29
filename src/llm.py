@@ -2,8 +2,8 @@ import json
 import subprocess
 from typing import Any, Callable, Dict, Sequence
 
+from config import get_settings
 from utils import try_except_with_log
-
 
 SUMMARY_PROMPT_TEMPLATE = """
 ### Role and Goal
@@ -193,24 +193,29 @@ class GeminiClient:
     def __init__(
         self,
         *,
-        run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] = default_run_command,
-        model: str = "gemini-2.5-flash",
+        run_command: Callable[
+            [Sequence[str]], subprocess.CompletedProcess[str]
+        ] = default_run_command,
+        model: str | None = None,
         max_attempts: int = 2,
         command_builder: Callable[[str, str], Sequence[str]] | None = None,
     ) -> None:
+        settings = get_settings()
         self._run_command = run_command
-        self._model = model
+        self._model = model or settings.GEMINI_MODEL
         self._max_attempts = max_attempts
         self._command_builder = command_builder or self._default_command_builder
 
     def _default_command_builder(self, prompt: str, model: str) -> Sequence[str]:
         return ["gemini", "-p", prompt, "-m", model]
 
-    @try_except_with_log("Executing Gemini CLI request")
+    @try_except_with_log()
     def request(self, prompt: str) -> Dict[str, Any] | None:
         current_prompt = prompt
         for _ in range(self._max_attempts):
-            result = self._run_command(self._command_builder(current_prompt, self._model))
+            result = self._run_command(
+                self._command_builder(current_prompt, self._model)
+            )
             if result.returncode != 0:
                 raise RuntimeError(f"Gemini CLI failed: {result.stderr}")
 

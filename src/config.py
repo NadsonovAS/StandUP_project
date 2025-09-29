@@ -1,8 +1,8 @@
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterator
 
-from contextlib import contextmanager
 from pydantic import BaseModel, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     PREFERRED_TIMESCALE: int = 600
     CONFIDENCE_THRESHOLD: float = 0.5
     OVERLAP_FACTOR: float = 0.8
+
+    # === Gemini Configuration ===
+    GEMINI_MODEL: str = "gemini-2.5-pro"
+    # GEMINI_MODEL: str = "gemini-2.5-flash"
+    # GEMINI_MODEL: str = "gemini-flash-latest"
 
 
 @lru_cache
