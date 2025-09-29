@@ -4,7 +4,10 @@ __pycache__/
 wheels/
 build/
 dist/
-..logs/
+logs/
+standup_project/target/
+standup_project/dbt_packages/
+standup_project/logs/
 .pytest_cache
 .DS_Store
 *.TextGrid

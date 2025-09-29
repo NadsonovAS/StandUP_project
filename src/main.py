@@ -174,10 +174,6 @@ def trigger_dbt_pipeline_after_video(
         return
 
     video_identifier = video.video_id or video.video_title or "<unknown>"
-    logging.info(
-        "Triggering dbt pipeline after processing video %s",
-        video_identifier,
-    )
 
     command = (
         "uv",
@@ -189,20 +185,13 @@ def trigger_dbt_pipeline_after_video(
     )
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             command,
             check=False,
             capture_output=True,
             text=True,
         )
-    except FileNotFoundError as exc:
-        logging.error(
-            "dbt invocation failed for video %s: %s",
-            video_identifier,
-            exc,
-        )
-        return
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logging.error(
             "Unexpected error when running dbt for video %s: %s",
             video_identifier,
@@ -210,18 +199,8 @@ def trigger_dbt_pipeline_after_video(
         )
         return
 
-    if result.returncode != 0:
-        logging.error(
-            "dbt run failed for video %s (exit code %s)\nStdout: %s\nStderr: %s",
-            video_identifier,
-            result.returncode,
-            result.stdout.strip(),
-            result.stderr.strip(),
-        )
-        return
-
     logging.info(
-        "dbt pipeline completed successfully for video %s",
+        "DBT pipeline completed successfully",
         video_identifier,
     )
 
@@ -301,7 +280,7 @@ def process_playlist(
             commit=commit,
             settings=settings,
         )
-        # trigger_dbt_pipeline_after_video(dbt_project_dir, video)
+        trigger_dbt_pipeline_after_video(dbt_project_dir, video)
 
 
 def parse_args() -> argparse.Namespace:
