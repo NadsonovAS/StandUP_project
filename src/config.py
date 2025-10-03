@@ -68,9 +68,9 @@ class Settings(BaseSettings):
     OVERLAP_FACTOR: float = 0.8
 
     # === Gemini Configuration ===
-    GEMINI_MODEL: str = "gemini-2.5-pro"
+    # GEMINI_MODEL: str = "gemini-2.5-pro"
     # GEMINI_MODEL: str = "gemini-2.5-flash"
-    # GEMINI_MODEL: str = "gemini-flash-latest"
+    GEMINI_MODEL: str = "gemini-flash-latest"
 
 
 @lru_cache

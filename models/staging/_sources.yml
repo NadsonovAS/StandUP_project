@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: standup_raw
+    schema: standup_raw
+    tables:
+      - name: process_video
+  - name: standup_core
+    schema: standup_core
+    tables:
+      - name: categories
+      - name: subcategories
+

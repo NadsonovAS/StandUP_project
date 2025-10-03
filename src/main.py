@@ -167,21 +167,16 @@ def update_status(
 
 
 def trigger_dbt_pipeline_after_video(
-    dbt_project_dir: Path | None,
-    video: ProcessVideo,
+    *,
+    playlist_reference: str | None = None,
 ) -> None:
-    if dbt_project_dir is None:
-        return
-
-    video_identifier = video.video_id or video.video_title or "<unknown>"
+    """Run the dbt pipeline once after playlist processing when work occurred."""
 
     command = (
         "uv",
         "run",
         "dbt",
         "run",
-        "--project-dir",
-        str(dbt_project_dir),
     )
 
     try:
@@ -193,15 +188,15 @@ def trigger_dbt_pipeline_after_video(
         )
     except Exception as exc:
         logging.error(
-            "Unexpected error when running dbt for video %s: %s",
-            video_identifier,
+            "Unexpected error when running dbt after playlist %s: %s",
+            playlist_reference if playlist_reference else "playlist",
             exc,
         )
         return
 
     logging.info(
-        "DBT pipeline completed successfully",
-        video_identifier,
+        "DBT pipeline completed successfully after playlist processing (%s)",
+        playlist_reference if playlist_reference else "playlist",
     )
 
 
@@ -216,15 +211,16 @@ def process_single_video(
     storage_client: ObjectStorageClient,
     commit: Callable[[], None],
     settings: Settings,
-) -> None:
+) -> bool:
+    """Process a single video; return True when work was performed."""
     try:
         if video_info.video_id is None:
-            return
+            return False
 
         row_from_db = repository.fetch_pending_video(video_info.video_id)
 
         if not row_from_db:
-            return
+            return False
 
         logging.info("=" * 42)
         logging.info("Starting processing for - %s", video_info.video_title)
@@ -243,11 +239,15 @@ def process_single_video(
         update_status(row_from_db, repository, commit)
         remove_audio_cache(settings=settings)
 
+        return True
+
     except (DownloadError, ExtractorError) as exc:
         logging.warning("Skipping unavailable video %s: %s", video_info.video_id, exc)
+        return False
     except Exception as exc:  # noqa: BLE001
         logging.error("Error processing video %s: %s", video_info.video_id, exc)
         raise
+    return False
 
 
 def process_playlist(
@@ -261,15 +261,16 @@ def process_playlist(
     storage_client: ObjectStorageClient,
     commit: Callable[[], None],
     settings: Settings,
-    dbt_project_dir: Path | None = None,
 ) -> None:
     playlist_info = downloader.extract_playlist_info(youtube_url)
 
     repository.insert_new_videos(playlist_info)
     commit()
 
+    processed_count = 0
+
     for video in playlist_info:
-        process_single_video(
+        processed = process_single_video(
             video,
             repository,
             downloader=downloader,
@@ -280,7 +281,13 @@ def process_playlist(
             commit=commit,
             settings=settings,
         )
-        trigger_dbt_pipeline_after_video(dbt_project_dir, video)
+        if processed:
+            processed_count += 1
+
+    if processed_count:
+        trigger_dbt_pipeline_after_video(
+            playlist_reference=youtube_url,
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -308,15 +315,6 @@ def main() -> None:
         sound_classifier_client = SoundClassifierClient(settings=settings)
         llm_client = GeminiClient()
 
-        project_root = Path(__file__).resolve().parent.parent
-        dbt_project_dir: Path | None = project_root / "standup_project"
-        if not dbt_project_dir.exists():
-            logging.warning(
-                "dbt project directory %s not found. Skipping dbt integration.",
-                dbt_project_dir,
-            )
-            dbt_project_dir = None
-
         minio_client = Minio(
             settings.MINIO_DOMAIN,
             access_key=settings.MINIO_ROOT_USER,
@@ -334,7 +332,6 @@ def main() -> None:
             storage_client=minio_client,
             commit=connection.commit,
             settings=settings,
-            dbt_project_dir=dbt_project_dir,
         )
 
     except ValidationError as exc:

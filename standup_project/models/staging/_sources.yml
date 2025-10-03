@@ -1,7 +1,0 @@
-version: 2
-
-sources:
-  - name: standup_raw
-    schema: standup_raw
-    tables:
-      - name: process_video

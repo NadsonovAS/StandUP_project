@@ -5,9 +5,9 @@ wheels/
 build/
 dist/
 logs/
-standup_project/target/
-standup_project/dbt_packages/
-standup_project/logs/
+target/
+dbt_packages/
+logs/
 .pytest_cache
 .DS_Store
 *.TextGrid
@@ -19,7 +19,7 @@ standup_project/logs/
 .venv
 
 
-# File extensions
+# File
 *.json
 *.opus
 *.lock
@@ -29,6 +29,8 @@ standup_project/logs/
 *.bkp
 *.dtmp
 *.log
+src/sound_classifier
 
 # IDE/project settings
 .vscode/
+dbt_internal_packages/

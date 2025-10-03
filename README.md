@@ -9,7 +9,7 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
 - Caches audio artefacts in MinIO and on disk, avoiding re-downloads across pipeline runs.
 - Transcribes shows locally with the Apple Silicon–optimised `parakeet-mlx` model and detects laughter via a Swift `SoundAnalysis` binary.
 - Summarises chapters and classifies topics through the Gemini CLI, persisting structured JSON for downstream reporting.
-- Ships a dbt project that populates core analytics tables via `uv run dbt run --project-dir standup_project` after each ingestion step.
+- Ships a dbt project that populates core analytics tables via `uv run dbt run` after each ingestion step.
 
 ## Prerequisites
 - **Hardware/OS:** Apple Silicon running macOS 14+ (required for `SoundAnalysis` and `parakeet-mlx`).
@@ -82,19 +82,14 @@ You can monitor progress via pipeline logs or SQL, e.g. `SELECT video_id, proces
 ## Analytics with dbt
 Build analytics layers once ingestion finishes:
 ```bash
-uv run dbt build --project-dir standup_project
+uv run dbt build
 ```
 Key models include:
 - `staging/stg_process_video.sql`: exposes raw JSON fields with typed columns.
 - `core/*`: normalises transcripts, chapters, laughter scores, and classifications.
 
-Run focused tests before committing changes:
-```bash
-uv run dbt test --project-dir standup_project --select core_transcript_segments
-```
-
 ### Orchestrating dbt from Python
-`main.py` shells out to `uv run dbt run --project-dir standup_project` after each successfully processed video, so analytics tables stay in sync with new raw data. Trigger the same command manually when needed:
+`main.py` shells out to `uv run dbt run` after each successfully processed video, so analytics tables stay in sync with new raw data. Trigger the same command manually when needed:
 ```python
 import subprocess
 
@@ -117,8 +112,7 @@ StandUP_project
 │   ├── database.py            # Psycopg repository for standup_raw.process_video
 │   ├── models.py              # Pydantic models for pipeline entities
 │   ├── utils.py               # Shared logging utilities and cache cleanup
-│   └── tests/                 # pytest suite covering pipeline components
-├── standup_project/           # dbt project (models, macros, tests)
+├── standup_project/           # dbt project (models, macros, snapshots)
 ├── initdb/init_schema.sql     # Database bootstrap schema for raw/core layers
 ├── docker-compose.yml         # Local PostgreSQL and MinIO stack
 ├── data/                      # Local audio cache (ignored)
@@ -136,8 +130,6 @@ xcrun swiftc -target arm64-apple-macos13 \
 Ensure you re-run `chmod +x src/sound_classifier` if needed.
 
 ## Development Workflow
-- Run unit tests: `uv run pytest` (covers downloader, transcription, LLM integration, and dbt helpers).
-- Targeted dbt tests: `uv run dbt test --project-dir standup_project --select <model>`.
 - Keep configuration in `src/config.py`; prefer adding settings there instead of reading environment variables ad hoc.
 - Log via the standard library `logging` module—`main.py` configures default formatting.
 
