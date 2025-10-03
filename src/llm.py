@@ -217,6 +217,9 @@ class GeminiClient:
                 self._command_builder(current_prompt, self._model)
             )
             if result.returncode != 0:
+                if "fetch failed" in result.stderr:
+                    # This is a transient network error, try again
+                    continue
                 raise RuntimeError(f"Gemini CLI failed: {result.stderr}")
 
             llm_output = clean_json_output(result.stdout)

@@ -25,30 +25,30 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
 -- Core Tables
 CREATE TABLE IF NOT EXISTS standup_core.channels (
     channel_id serial PRIMARY KEY,
-    yt_channel_id varchar(50) UNIQUE NOT NULL,
-    channel_name varchar(50) NOT NULL,
+    yt_channel_id text UNIQUE NOT NULL,
+    channel_name text NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now ()
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.playlists (
     playlist_id serial PRIMARY KEY,
-    yt_playlist_id varchar(50) UNIQUE NOT NULL,
-    playlist_title varchar(50),
+    yt_playlist_id text UNIQUE NOT NULL,
+    playlist_title text,
     created_at TIMESTAMPTZ DEFAULT now ()
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.videos (
     video_id serial PRIMARY KEY,
-    yt_video_id varchar(25) UNIQUE NOT NULL,
+    yt_video_id text UNIQUE NOT NULL,
     playlist_id int REFERENCES standup_core.playlists (playlist_id),
     channel_id int REFERENCES standup_core.channels (channel_id),
-    video_title varchar(50),
-    video_url varchar(50),
+    video_title text,
     duration int2,
     like_count int4,
     view_count int4,
     comment_count int4,
-    upload_date DATE
+    upload_date DATE,
+    created_at TIMESTAMPTZ DEFAULT now ()
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
@@ -74,13 +74,13 @@ CREATE TABLE IF NOT EXISTS standup_core.chapters (
 
 CREATE TABLE IF NOT EXISTS standup_core.categories (
     category_id int2 PRIMARY KEY,
-    main_category varchar(50) UNIQUE NOT NULL
+    main_category text UNIQUE NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.subcategories (
     subcategory_id int2 PRIMARY KEY,
     category_id int2 NOT NULL REFERENCES standup_core.categories (category_id) ON DELETE CASCADE,
-    subcategory varchar(50) NOT NULL,
+    subcategory text NOT NULL,
     UNIQUE (category_id, subcategory)
 );
 

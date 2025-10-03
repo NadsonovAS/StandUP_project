@@ -21,7 +21,7 @@ with source_channels as (
 )
 
 
-select nextval('standup_core.videos_video_id_seq') as video_id, *
+select nextval('standup_core.videos_video_id_seq') as video_id, *, current_timestamp as created_at
 from source_channels sc
 {% if is_incremental() %}
 where not exists (
