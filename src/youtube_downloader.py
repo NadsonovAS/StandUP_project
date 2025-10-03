@@ -11,17 +11,20 @@ from utils import try_except_with_log
 
 
 class ObjectStorageClient(Protocol):
-    def stat_object(self, bucket_name: str, object_name: str) -> Any:
-        ...
+    def stat_object(self, bucket_name: str, object_name: str) -> Any: ...
 
-    def fget_object(self, bucket_name: str, object_name: str, file_path: str) -> Any:
-        ...
+    def fget_object(
+        self, bucket_name: str, object_name: str, file_path: str
+    ) -> Any: ...
 
-    def fput_object(self, bucket_name: str, object_name: str, file_path: str) -> Any:
-        ...
+    def fput_object(
+        self, bucket_name: str, object_name: str, file_path: str
+    ) -> Any: ...
 
 
-def build_audio_artifacts(video_title: str, settings: Settings) -> tuple[Path, str, str]:
+def build_audio_artifacts(
+    video_title: str, settings: Settings
+) -> tuple[Path, str, str]:
     """Return local path, object name, and template for audio downloads."""
     audio_filename = f"{video_title}.opus"
     local_audio_path = settings.DATA_DIR / audio_filename
@@ -40,15 +43,11 @@ def normalize_title(title: str) -> str:
     - Collapse multiple underscores into one.
     - Trim leading and trailing underscores.
     """
+
     normalized = re.sub(r"[^\w\dа-яА-ЯёЁ]+", "_", title)
     normalized = re.sub(r"__+", "_", normalized)
     sanitized = normalized.strip("_")
 
-    # yt-dlp occasionally yields playlist items whose titles contain only
-    # punctuation or whitespace (for example, "---"). After normalization this
-    # would produce an empty string which later becomes an invalid filename like
-    # ".opus".  Returning a stable fallback ensures we always generate a
-    # meaningful object storage key and local cache path.
     return sanitized or "untitled"
 
 
@@ -63,7 +62,9 @@ class YoutubeDownloader:
         self._settings = settings or get_settings()
         self._ydl_factory = ydl_factory
 
-    def _with_client(self, options: dict, callback: Callable[[yt_dlp.YoutubeDL], Any]) -> Any:
+    def _with_client(
+        self, options: dict, callback: Callable[[yt_dlp.YoutubeDL], Any]
+    ) -> Any:
         with self._ydl_factory(options) as client:
             return callback(client)
 
@@ -79,7 +80,9 @@ class YoutubeDownloader:
                 "comment_count",
                 "upload_date",
             ]
-            return {key: video_info[key] for key in keys_to_extract if key in video_info}
+            return {
+                key: video_info[key] for key in keys_to_extract if key in video_info
+            }
 
         return self._with_client(self._settings.YDL_PLAYLIST_OPTS, _extract)
 
@@ -130,7 +133,9 @@ class YoutubeDownloader:
             storage_client.stat_object(self._settings.MINIO_AUDIO_BUCKET, object_name)
             if not local_audio_path.exists():
                 storage_client.fget_object(
-                    self._settings.MINIO_AUDIO_BUCKET, object_name, str(local_audio_path)
+                    self._settings.MINIO_AUDIO_BUCKET,
+                    object_name,
+                    str(local_audio_path),
                 )
             return local_audio_path
         except S3Error as error:
