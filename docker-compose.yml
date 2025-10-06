@@ -48,6 +48,43 @@ services:
       echo 'MinIO buckets created successfully';
       "
 
+  superset:
+    build:
+      context: .
+      dockerfile: docker/superset/Dockerfile
+    image: standup-superset:latest
+    container_name: standup-superset
+    restart: unless-stopped
+    depends_on:
+      - postgresql
+    env_file:
+      - .env
+    environment:
+      SUPERSET_ENV: production
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-standup-secret-key}
+      SUPERSET_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      SUPERSET_ADMIN_USER: ${SUPERSET_ADMIN_USER:-admin}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-admin}
+      SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@example.com}
+    ports:
+      - "8088:8088"
+    volumes:
+      - superset_home:/app/superset_home
+    command: >
+      /bin/sh -c "
+      superset db upgrade &&
+      (superset fab create-admin \\
+        --username ${SUPERSET_ADMIN_USER:-admin} \\
+        --firstname Superset \\
+        --lastname Admin \\
+        --email ${SUPERSET_ADMIN_EMAIL:-admin@example.com} \\
+        --password ${SUPERSET_ADMIN_PASSWORD:-admin} || true) &&
+      superset init &&
+      superset run -h 0.0.0.0 -p 8088
+      "
+
 volumes:
   minio_data:
   postgres_data:
+  superset_home:

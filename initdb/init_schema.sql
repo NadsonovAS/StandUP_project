@@ -60,17 +60,6 @@ CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
     PRIMARY KEY (video_id, segment_id)
 );
 
-CREATE TABLE IF NOT EXISTS standup_core.chapters (
-    chapter_id serial PRIMARY KEY,
-    video_id int NOT NULL REFERENCES standup_core.videos (video_id),
-    start_segment_id int2 NOT NULL,
-    end_segment_id int2 NOT NULL,
-    theme TEXT,
-    summary TEXT,
-    UNIQUE (video_id, start_segment_id, end_segment_id),
-    FOREIGN KEY (video_id, start_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE,
-    FOREIGN KEY (video_id, end_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE
-);
 
 CREATE TABLE IF NOT EXISTS standup_core.categories (
     category_id int2 PRIMARY KEY,
@@ -153,18 +142,19 @@ VALUES
     (49, 10, 'Self-deprecating humor'),
     (50, 10, 'Surreal or absurd comedy') ON CONFLICT (subcategory_id) DO NOTHING;
 
-CREATE TABLE IF NOT EXISTS standup_core.classifications (
-    classification_id serial PRIMARY KEY,
-    chapter_id int4 NOT NULL REFERENCES standup_core.chapters (chapter_id) ON DELETE CASCADE,
-    category_id int2 NOT NULL REFERENCES standup_core.categories (category_id) ON DELETE RESTRICT,
-    subcategory_id int2 REFERENCES standup_core.subcategories (subcategory_id) ON DELETE RESTRICT,
-    reason TEXT,
-    UNIQUE (chapter_id, category_id, subcategory_id)
-);
-
 CREATE TABLE IF NOT EXISTS standup_core.sound_features (
     video_id int REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
     time_offset float4,
     score float4,
     PRIMARY KEY (video_id, time_offset)
+);
+
+CREATE TABLE IF NOT EXISTS standup_core.chapters (
+    video_id int NOT NULL REFERENCES standup_core.videos (video_id),
+    start_segment_id int2 NOT NULL,
+    end_segment_id int2 NOT NULL,
+    subcategory_id int2 REFERENCES standup_core.subcategories (subcategory_id) ON DELETE RESTRICT,
+    UNIQUE (video_id, start_segment_id, end_segment_id),
+    FOREIGN KEY (video_id, start_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE,
+    FOREIGN KEY (video_id, end_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE
 );

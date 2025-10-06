@@ -31,6 +31,7 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
    ```bash
    uv sync
    ```
+   This pulls the Python 3.13 toolchain, `yt-dlp`, and the supporting CLIs pinned in `pyproject.toml`.
 3. **Create a `.env` file** (values shown are local defaults):
    ```env
    # PostgreSQL
@@ -50,15 +51,16 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
    # MINIO_AUDIO_BUCKET=standup-project
    # MINIO_AUDIO_PATH=data/audio
    ```
-   Ensure `MINIO_DOMAIN` matches how you access MinIO (default is `localhost:9000`).
 4. **Start infrastructure**
    ```bash
    docker-compose up -d
    ```
-   This launches PostgreSQL, MinIO, and a bootstrap job that creates the `standup-project` bucket with a public policy.
-5. **Confirm services** (optional)
-   - PostgreSQL: `psql -h localhost -U standup_project -d standup_project -c "\dt"`
-   - MinIO Console: http://localhost:9001 (use credentials from `.env`).
+   This launches PostgreSQL, MinIO, and a bootstrap job that creates the `standup-project` bucket with a public policy. Stop services with `docker-compose down` when finished.
+
+5. **Build the laughter detector binary**
+   ```bash
+   swiftc src/sound_classifier.swift -o src/sound_classifier
+   ```
 
 ## Running the Ingestion Pipeline
 Run the end-to-end processor with any YouTube playlist URL containing a `list=` parameter:
@@ -72,13 +74,6 @@ The pipeline will:
 - Call Gemini twice: once for chapter summaries, once for topic classifications.
 - Mark rows as `process_status = 'finished'` when all artefacts are present.
 
-Artifacts:
-- Raw audio cache: `data/` (also uploaded to `standup-project/data/audio` in MinIO).
-- Structured outputs: JSON columns in `standup_raw.process_video`.
-- Logs: `logs/` (ignored by Git).
-
-You can monitor progress via pipeline logs or SQL, e.g. `SELECT video_id, process_status FROM standup_raw.process_video ORDER BY video_id;`.
-
 ## Analytics with dbt
 Build analytics layers once ingestion finishes:
 ```bash
@@ -90,44 +85,48 @@ Key models include:
 
 ### Orchestrating dbt from Python
 `main.py` shells out to `uv run dbt run` after each successfully processed video, so analytics tables stay in sync with new raw data. Trigger the same command manually when needed:
-```python
-import subprocess
 
-subprocess.run(
-    ["uv", "run", "dbt", "run", "--project-dir", "standup_project"],
-    check=True,
-)
-```
 
 ## Repository Layout
 ```text
 StandUP_project
 ├── src/
-│   ├── main.py                # End-to-end playlist processor
-│   ├── youtube_downloader.py  # yt-dlp wrapper with MinIO caching helpers
-│   ├── transcribe.py          # Parakeet transcription wrapper
-│   ├── sound_classifier.py    # Swift laughter detector client (binary lives at src/sound_classifier)
+│   ├── config.py             # Application settings loaded via config.Settings
+│   ├── main.py               # End-to-end playlist processor
+│   ├── youtube_downloader.py # yt-dlp wrapper with MinIO caching helpers
+│   ├── transcribe.py         # Parakeet transcription wrapper
+│   ├── sound_classifier.py   # Python client that wraps the Swift binary at src/sound_classifier
 │   ├── sound_classifier.swift # Source for rebuilding the Swift binary
-│   ├── llm.py                 # Gemini CLI prompts and client helpers
-│   ├── database.py            # Psycopg repository for standup_raw.process_video
-│   ├── models.py              # Pydantic models for pipeline entities
-│   ├── utils.py               # Shared logging utilities and cache cleanup
-├── standup_project/           # dbt project (models, macros, snapshots)
-├── initdb/init_schema.sql     # Database bootstrap schema for raw/core layers
-├── docker-compose.yml         # Local PostgreSQL and MinIO stack
-├── data/                      # Local audio cache (ignored)
-├── logs/                      # Execution logs and dbt state (ignored)
+│   ├── sound_classifier      # Compiled Swift laughter detector binary (ignored)
+│   ├── llm.py                # Gemini CLI prompts and client helpers
+│   ├── database.py           # Psycopg repository for standup_raw.process_video
+│   ├── models.py             # Pydantic models for pipeline entities
+│   └── utils.py              # Shared logging utilities and cache cleanup
+├── analyses/                # dbt analysis queries for ad hoc exploration
+├── macros/                  # dbt macros shared across models
+├── models/                  # dbt models (staging, core, marts)
+├── seeds/                   # dbt seed data for reference tables
+├── snapshots/               # dbt snapshots for slowly changing data
+├── dbt_project.yml          # dbt project definition
+├── dbt_packages/            # Third-party dbt packages installed via dbt deps (ignored)
+├── dbt_internal_packages/   # Auto-generated dbt dependencies (ignored)
+├── target/                  # Compiled dbt artifacts (ignored)
+├── docker/
+│   └── superset/            # Superset deployment assets
+├── initdb/
+│   └── init_schema.sql      # Database bootstrap schema for raw/core layers
+├── docker-compose.yml       # Local PostgreSQL, MinIO, Superset stack
+├── pyproject.toml           # Python project configuration
+├── .env                     # MinIO/PostgreSQL Configuration (ignored)
+├── uv.lock                  # Locked dependency manifest for uv (ignored)
+├── data/                    # Local audio cache (ignored)
+├── logs/                    # Execution logs and dbt state (ignored)
+├── AGENTS.md                # Agent orchestration notes
+├── standup_project.drawio   # Architecture diagram source (ignored)
+├── image.png                # Pipeline overview illustration
 └── README.md
 ```
 
-## Laughter Detector Binary
-The prebuilt `src/sound_classifier` binary targets Apple Silicon. Rebuild it after code changes with the system Swift toolchain:
-```bash
-xcrun swiftc -target arm64-apple-macos13 \
-  -framework SoundAnalysis -framework AVFoundation \
-  src/sound_classifier.swift -o src/sound_classifier
-```
-Ensure you re-run `chmod +x src/sound_classifier` if needed.
 
 ## Development Workflow
 - Keep configuration in `src/config.py`; prefer adding settings there instead of reading environment variables ad hoc.
@@ -140,9 +139,4 @@ Ensure you re-run `chmod +x src/sound_classifier` if needed.
 
 ## Troubleshooting
 - **yt-dlp errors:** Ensure Safari is running and signed into the correct YouTube account so cookie extraction succeeds.
-- **Transcription failures:** The first `parakeet-mlx` invocation downloads weights—keep the machine awake and connected; if unsupported, pass a custom loader to `ParakeetTranscriber`.
 - **Gemini CLI issues:** Verify `gemini` is on `PATH` and authenticated. The pipeline retries once before giving up; check stderr in logs for JSON parsing errors.
-- **Laughter detector:** The Swift binary only runs on Apple Silicon. Rebuild if you upgrade macOS frameworks or if Gatekeeper blocks execution.
-- **Cleanup:** Remove stale audio caches with `uv run python -c "from utils import remove_audio_cache; remove_audio_cache()"`.
-
-Happy shipping!
