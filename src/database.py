@@ -78,11 +78,22 @@ class ProcessVideoRepository:
                 (video_ids,),
             )
             existing_ids = {row[0] for row in cursor.fetchall()}
+
             new_videos = [video for video in videos if video.video_id not in existing_ids]
 
-            logging.info(f"Number of new video - {len(new_videos)}")
-
+            seen_ids: set[str] = set()
+            unique_new_videos: list[ProcessVideo] = []
             for video in new_videos:
+                if video.video_id is None:
+                    continue
+                if video.video_id in seen_ids:
+                    continue
+                seen_ids.add(video.video_id)
+                unique_new_videos.append(video)
+
+            logging.info(f"Number of new video - {len(unique_new_videos)}")
+
+            for video in unique_new_videos:
                 cursor.execute(
                     """
                     INSERT INTO standup_raw.process_video (
@@ -95,6 +106,7 @@ class ProcessVideoRepository:
                         video_url
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (video_id) DO NOTHING
                     """,
                     (
                         video.channel_id,
@@ -106,4 +118,4 @@ class ProcessVideoRepository:
                         video.video_url,
                     ),
                 )
-        return len(new_videos)
+        return len(unique_new_videos)

@@ -4,6 +4,8 @@ CREATE SCHEMA IF NOT EXISTS standup_raw;
 
 CREATE SCHEMA IF NOT EXISTS standup_core;
 
+CREATE SCHEMA IF NOT EXISTS standup_mart;
+
 -- 2) Create Table
 -- RAW Tables
 CREATE TABLE IF NOT EXISTS standup_raw.process_video (
