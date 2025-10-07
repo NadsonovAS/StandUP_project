@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     llm_chapter_json JSONB,
     llm_classifier_json JSONB,
     sound_classifier_json JSONB,
-    process_status TEXT
+    process_status TEXT,
+    updated_at TIMESTAMPTZ
 );
 
 -- Core Tables
@@ -50,7 +51,8 @@ CREATE TABLE IF NOT EXISTS standup_core.videos (
     view_count int4,
     comment_count int4,
     upload_date DATE,
-    created_at TIMESTAMPTZ DEFAULT now ()
+    created_at TIMESTAMPTZ DEFAULT now (),
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
