@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -20,3 +21,4 @@ class ProcessVideo(BaseModel):
 
     audio_path: str | None = None
     process_status: str | None = None
+    updated_at: datetime | None = None

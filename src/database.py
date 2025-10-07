@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from typing import Any, Iterable, Optional, Sequence
 
 import psycopg
@@ -61,6 +62,28 @@ class ProcessVideoRepository:
                 f"UPDATE standup_raw.process_video SET {column} = %s WHERE video_id = %s",
                 (payload, video_id),
             )
+
+    @try_except_with_log()
+    def update_video_metadata(
+        self, video_id: str, metadata: dict[str, Any]
+    ) -> Optional[datetime]:
+        """Update metadata and timestamp for a processed video."""
+
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                UPDATE standup_raw.process_video
+                SET video_meta_json = %s,
+                    updated_at = NOW()
+                WHERE video_id = %s
+                RETURNING updated_at
+                """,
+                (json.dumps(metadata), video_id),
+            )
+            result = cursor.fetchone()
+        if result is None:
+            return None
+        return result[0]
 
     @try_except_with_log()
     def insert_new_videos(self, playlist_info: Iterable[ProcessVideo]) -> int:

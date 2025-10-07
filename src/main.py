@@ -58,16 +58,17 @@ def ensure_video_metadata(
     downloader: YoutubeDownloader,
     commit: Callable[[], None],
 ) -> None:
-    if not video_row.video_url:
+    if not video_row.video_url or not video_row.video_id:
         return
 
-    ensure_and_update_db_field(
-        video_row,
-        repository,
-        "video_meta_json",
-        lambda: downloader.extract_video_info(video_row.video_url),
-        commit=commit,
-    )
+    metadata = downloader.extract_video_info(video_row.video_url)
+    if metadata is None:
+        return
+
+    updated_at = repository.update_video_metadata(video_row.video_id, metadata)
+    video_row.video_meta_json = metadata
+    video_row.updated_at = updated_at
+    commit()
 
 
 def ensure_audio_and_transcription(
