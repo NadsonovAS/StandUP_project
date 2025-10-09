@@ -1,6 +1,5 @@
 import json
 import logging
-from datetime import datetime
 from typing import Any, Iterable, Optional, Sequence
 
 import psycopg
@@ -36,8 +35,7 @@ class ProcessVideoRepository:
     @try_except_with_log()
     def fetch_pending_video(self, video_id: str) -> Optional[ProcessVideo]:
         query = (
-            "SELECT * FROM standup_raw.process_video "
-            "WHERE video_id = %s AND process_status IS NULL"
+            "SELECT * FROM standup_raw.process_video WHERE video_id = %s"
         )
         with self._connection.cursor() as cursor:
             cursor.execute(query, (video_id,))
@@ -64,28 +62,6 @@ class ProcessVideoRepository:
             )
 
     @try_except_with_log()
-    def update_video_metadata(
-        self, video_id: str, metadata: dict[str, Any]
-    ) -> Optional[datetime]:
-        """Update metadata and timestamp for a processed video."""
-
-        with self._connection.cursor() as cursor:
-            cursor.execute(
-                """
-                UPDATE standup_raw.process_video
-                SET video_meta_json = %s,
-                    updated_at = NOW()
-                WHERE video_id = %s
-                RETURNING updated_at
-                """,
-                (json.dumps(metadata), video_id),
-            )
-            result = cursor.fetchone()
-        if result is None:
-            return None
-        return result[0]
-
-    @try_except_with_log()
     def insert_new_videos(self, playlist_info: Iterable[ProcessVideo]) -> int:
         videos = list(playlist_info)
         if not videos:
@@ -102,7 +78,9 @@ class ProcessVideoRepository:
             )
             existing_ids = {row[0] for row in cursor.fetchall()}
 
-            new_videos = [video for video in videos if video.video_id not in existing_ids]
+            new_videos = [
+                video for video in videos if video.video_id not in existing_ids
+            ]
 
             seen_ids: set[str] = set()
             unique_new_videos: list[ProcessVideo] = []

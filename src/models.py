@@ -21,4 +21,4 @@ class ProcessVideo(BaseModel):
 
     audio_path: str | None = None
     process_status: str | None = None
-    updated_at: datetime | None = None
+    meta_updated_at: datetime | None = None

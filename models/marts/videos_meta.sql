@@ -1,7 +1,7 @@
 {{ config(
     schema='standup_mart',
     materialized='view',
-    alias='video_meta_info'
+    alias='videos_meta_info'
 ) }}
 
 with chapter_categories as (
@@ -32,6 +32,11 @@ aggregated_laughter as (
         group by ch.video_id, duration
     ) cs
     group by cs.video_id
+),
+video_meta as (
+    select vm.video_id, vm.like_count, vm.view_count, vm.comment_count
+    from {{ref("core_videos_meta")}} vm
+    where snapshot_date in (select max(snapshot_date)  from {{ref("core_videos_meta")}})
 )
 select distinct
     ch.channel_name,
@@ -41,12 +46,13 @@ select distinct
     cc.main_category,
     cc.subcategory,
     al.laughter_percent,
-    v.view_count,
-    v.like_count,
-    v.comment_count,
+    vm.view_count,
+    vm.like_count,
+    vm.comment_count,
     to_char(make_interval(secs => v.duration), 'HH24:MI:SS') as duration_hms,
     v.upload_date
 from {{ref("core_videos")}} as v
+join video_meta as vm on vm.video_id = v.video_id
 join {{ref("core_playlists")}} as pl on pl.playlist_id = v.playlist_id
 join {{ref('core_channels')}} as ch on ch.channel_id = v.channel_id
 left join aggregated_laughter al on al.video_id = v.video_id

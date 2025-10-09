@@ -140,3 +140,5 @@ StandUP_project
 ## Troubleshooting
 - **yt-dlp errors:** Ensure Safari is running and signed into the correct YouTube account so cookie extraction succeeds.
 - **Gemini CLI issues:** Verify `gemini` is on `PATH` and authenticated. The pipeline retries once before giving up; check stderr in logs for JSON parsing errors.
+# TODO дополнить инструкцией по авторизации (инфо по ссылке в конце) - https://google-gemini.github.io/gemini-cli/docs/cli/authentication.html
+# TODO https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/configuration.md

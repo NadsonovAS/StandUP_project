@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     llm_classifier_json JSONB,
     sound_classifier_json JSONB,
     process_status TEXT,
-    updated_at TIMESTAMPTZ
+    created_at TIMESTAMPTZ DEFAULT now (),
+    meta_updated_at TIMESTAMPTZ
 );
 
 -- Core Tables
@@ -47,12 +48,17 @@ CREATE TABLE IF NOT EXISTS standup_core.videos (
     channel_id int REFERENCES standup_core.channels (channel_id),
     video_title text,
     duration int2,
+    upload_date DATE,
+    created_at TIMESTAMPTZ DEFAULT now ()
+);
+
+CREATE TABLE IF NOT EXISTS standup_core.videos_meta (
+    video_id int REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
+    snapshot_date date NOT NULL DEFAULT CURRENT_DATE,
     like_count int4,
     view_count int4,
     comment_count int4,
-    upload_date DATE,
-    created_at TIMESTAMPTZ DEFAULT now (),
-    updated_at TIMESTAMPTZ
+    UNIQUE (video_id, snapshot_date)
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
@@ -162,3 +168,18 @@ CREATE TABLE IF NOT EXISTS standup_core.chapters (
     FOREIGN KEY (video_id, start_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE,
     FOREIGN KEY (video_id, end_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE
 );
+
+CREATE OR REPLACE FUNCTION update_timestamp_on_meta_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.video_meta_json IS DISTINCT FROM OLD.video_meta_json THEN
+        NEW.meta_updated_at := now();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_timestamp_on_meta_change
+BEFORE UPDATE ON standup_raw.process_video
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp_on_meta_change();

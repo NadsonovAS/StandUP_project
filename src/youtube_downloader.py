@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Protocol
 
@@ -7,7 +6,6 @@ from minio.error import S3Error
 
 from config import Settings, get_settings
 from models import ProcessVideo
-from utils import try_except_with_log
 
 
 class ObjectStorageClient(Protocol):
@@ -31,24 +29,6 @@ def build_audio_artifacts(
     object_name = f"{settings.MINIO_AUDIO_PATH}/{audio_filename}"
     local_audio_path_template = str(settings.DATA_DIR / video_title)
     return local_audio_path, object_name, local_audio_path_template
-
-
-@try_except_with_log()
-def normalize_title(title: str) -> str:
-    """
-    Normalize a video title for safe use as a filesystem-friendly filename.
-
-    Steps:
-    - Replace all characters not alphanumeric, underscore, or Cyrillic with underscores.
-    - Collapse multiple underscores into one.
-    - Trim leading and trailing underscores.
-    """
-
-    normalized = re.sub(r"[^\w\dа-яА-ЯёЁ]+", "_", title)
-    normalized = re.sub(r"__+", "_", normalized)
-    sanitized = normalized.strip("_")
-
-    return sanitized or "untitled"
 
 
 class YoutubeDownloader:
@@ -97,19 +77,13 @@ class YoutubeDownloader:
 
             playlist_info: List[ProcessVideo] = []
             for entry in entries:
-                video_id = entry.get("id")
-                video_title = entry.get("title")
-                normalized_title = (
-                    normalize_title(video_title) if video_title else f"video_{video_id}"
-                )
-
                 video_data = {
                     "channel_id": entry.get("channel_id"),
                     "channel_name": entry.get("channel"),
                     "playlist_id": playlist_id,
                     "playlist_title": playlist_title,
-                    "video_id": video_id,
-                    "video_title": normalized_title,
+                    "video_id": entry.get("id"),
+                    "video_title": entry.get("title"),
                     "video_url": entry.get("url"),
                 }
 
@@ -122,11 +96,11 @@ class YoutubeDownloader:
         self,
         storage_client: ObjectStorageClient,
         video_url: str,
-        video_title: str,
+        video_id: str,
     ) -> Path:
         """Download audio, leveraging object storage for caching."""
         local_audio_path, object_name, local_audio_template = build_audio_artifacts(
-            video_title, self._settings
+            video_id, self._settings
         )
 
         try:

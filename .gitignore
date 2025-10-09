@@ -30,6 +30,7 @@ logs/
 *.dtmp
 *.log
 src/sound_classifier
+test.py
 
 # IDE/project settings
 .vscode/

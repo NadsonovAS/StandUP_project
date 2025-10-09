@@ -1,6 +1,7 @@
 import argparse
 import logging
 import subprocess
+from datetime import date
 from typing import Any, Callable
 
 from minio import Minio
@@ -30,9 +31,10 @@ def ensure_and_update_db_field(
     json_type: bool = True,
     allow_none: bool = False,
     commit: Callable[[], None],
+    force_update: bool = False,
 ) -> None:
     """Populate a missing column by generating and persisting the value."""
-    if getattr(video_row, column_name) is not None:
+    if getattr(video_row, column_name) is not None and not force_update:
         return
 
     if video_row.video_id is None:
@@ -58,17 +60,28 @@ def ensure_video_metadata(
     downloader: YoutubeDownloader,
     commit: Callable[[], None],
 ) -> None:
-    if not video_row.video_url or not video_row.video_id:
+    if not video_row.video_url:
         return
-
-    metadata = downloader.extract_video_info(video_row.video_url)
-    if metadata is None:
-        return
-
-    updated_at = repository.update_video_metadata(video_row.video_id, metadata)
-    video_row.video_meta_json = metadata
-    video_row.updated_at = updated_at
-    commit()
+    if video_row.video_meta_json is None:
+        ensure_and_update_db_field(
+            video_row,
+            repository,
+            "video_meta_json",
+            lambda: downloader.extract_video_info(video_row.video_url),
+            commit=commit,
+        )
+    elif video_row.meta_updated_at and video_row.meta_updated_at.date() < date.today():
+        logging.info(
+            "Starting video metadata update",
+        )
+        ensure_and_update_db_field(
+            video_row,
+            repository,
+            "video_meta_json",
+            lambda: downloader.extract_video_info(video_row.video_url),
+            commit=commit,
+            force_update=True,
+        )
 
 
 def ensure_audio_and_transcription(
@@ -90,7 +103,7 @@ def ensure_audio_and_transcription(
         return
 
     audio_path = downloader.download_audio(
-        storage_client, video_row.video_url, video_row.video_title
+        storage_client, video_row.video_url, video_row.video_id
     )
     video_row.audio_path = str(audio_path)
 
@@ -118,6 +131,12 @@ def run_llm_tasks(
     commit: Callable[[], None],
 ) -> None:
     if not video_row.transcribe_json:
+        return
+
+    needs_llm = (
+        video_row.llm_chapter_json is None or video_row.llm_classifier_json is None
+    )
+    if not needs_llm:
         return
 
     ensure_and_update_db_field(
@@ -166,11 +185,8 @@ def update_status(
         commit()
 
 
-def trigger_dbt_pipeline_after_video(
-    *,
-    playlist_reference: str | None = None,
-) -> None:
-    """Run the dbt pipeline once after playlist processing when work occurred."""
+def trigger_dbt_pipeline_after_video() -> None:
+    """Run the dbt pipeline."""
 
     command = (
         "uv",
@@ -188,20 +204,18 @@ def trigger_dbt_pipeline_after_video(
         )
     except Exception as exc:
         logging.error(
-            "Unexpected error when running dbt after playlist %s: %s",
-            playlist_reference if playlist_reference else "playlist",
+            "Unexpected error when running dbt ",
             exc,
         )
         return
 
     logging.info(
-        "DBT pipeline completed successfully after playlist processing (%s)",
-        playlist_reference if playlist_reference else "playlist",
+        "DBT pipeline completed successfully",
     )
 
 
 def process_single_video(
-    video_info: ProcessVideo,
+    video_row: ProcessVideo,
     repository: ProcessVideoRepository,
     *,
     downloader: YoutubeDownloader,
@@ -214,20 +228,19 @@ def process_single_video(
 ) -> bool:
     """Process a single video; return True when work was performed."""
     try:
-        if video_info.video_id is None:
+        if video_row.video_id is None:
             return False
 
-        row_from_db = repository.fetch_pending_video(video_info.video_id)
-
-        if not row_from_db:
+        video_from_db = repository.fetch_pending_video(video_row.video_id)
+        if not video_from_db:
             return False
 
         logging.info("=" * 42)
-        logging.info("Starting processing for - %s", video_info.video_title)
+        logging.info("Starting processing for - %s", video_row.video_title)
 
-        ensure_video_metadata(row_from_db, repository, downloader, commit)
+        ensure_video_metadata(video_from_db, repository, downloader, commit)
         ensure_audio_and_transcription(
-            row_from_db,
+            video_from_db,
             repository,
             downloader,
             transcriber,
@@ -235,17 +248,17 @@ def process_single_video(
             storage_client,
             commit,
         )
-        run_llm_tasks(row_from_db, repository, llm_client, commit)
-        update_status(row_from_db, repository, commit)
+        run_llm_tasks(video_from_db, repository, llm_client, commit)
+        update_status(video_from_db, repository, commit)
         remove_audio_cache(settings=settings)
 
         return True
 
     except (DownloadError, ExtractorError) as exc:
-        logging.warning("Skipping unavailable video %s: %s", video_info.video_id, exc)
+        logging.warning("Skipping unavailable video %s: %s", video_row.video_id, exc)
         return False
     except Exception as exc:  # noqa: BLE001
-        logging.error("Error processing video %s: %s", video_info.video_id, exc)
+        logging.error("Error processing video %s: %s", video_row.video_id, exc)
         raise
     return False
 
@@ -267,10 +280,8 @@ def process_playlist(
     repository.insert_new_videos(playlist_info)
     commit()
 
-    processed_count = 0
-
     for video in playlist_info:
-        processed = process_single_video(
+        process_single_video(
             video,
             repository,
             downloader=downloader,
@@ -281,13 +292,8 @@ def process_playlist(
             commit=commit,
             settings=settings,
         )
-        if processed:
-            processed_count += 1
 
-    if processed_count:
-        trigger_dbt_pipeline_after_video(
-            playlist_reference=youtube_url,
-        )
+    trigger_dbt_pipeline_after_video()
 
 
 def parse_args() -> argparse.Namespace:

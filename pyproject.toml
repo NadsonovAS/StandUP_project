@@ -3,15 +3,15 @@ name = "standup-project"
 version = "0.1.0"
 description = "Pipeline выгрузки аудио из плейстов youtube с последующей транскрибацией, получением списка тем с временными метками, анализ аудио на предмет смеха с получением временных меток."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = "==3.13.7"
 dependencies = [
     "dbt-core>=1.10.11",
     "dbt-postgres>=1.9.1",
     "minio>=7.2.16",
     "numba>=0.62",
-    "parakeet-mlx>=0.3.6",
+    "parakeet-mlx>=0.4",
     "psycopg>=3.2.9",
-    "pydantic>=2.11.7",
-    "pydantic-settings>=2.10.1",
-    "yt-dlp>=2025.8.27",
+    "pydantic>=2.12",
+    "pydantic-settings>=2.11",
+    "yt-dlp>=2025.9.26",
 ]
