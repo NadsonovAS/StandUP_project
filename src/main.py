@@ -1,6 +1,7 @@
 import argparse
 import logging
 import subprocess
+import time
 from datetime import date
 from typing import Any, Callable
 
@@ -63,6 +64,9 @@ def ensure_video_metadata(
     if not video_row.video_url:
         return
     if video_row.video_meta_json is None:
+        logging.info(
+            "Starting video metadata download",
+        )
         ensure_and_update_db_field(
             video_row,
             repository,
@@ -70,7 +74,9 @@ def ensure_video_metadata(
             lambda: downloader.extract_video_info(video_row.video_url),
             commit=commit,
         )
-    elif video_row.meta_updated_at and video_row.meta_updated_at.date() < date.today():
+    elif (
+        not video_row.meta_updated_at or video_row.meta_updated_at.date() < date.today()
+    ):
         logging.info(
             "Starting video metadata update",
         )
@@ -82,6 +88,7 @@ def ensure_video_metadata(
             commit=commit,
             force_update=True,
         )
+        time.sleep(1)
 
 
 def ensure_audio_and_transcription(

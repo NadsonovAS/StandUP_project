@@ -142,3 +142,9 @@ StandUP_project
 - **Gemini CLI issues:** Verify `gemini` is on `PATH` and authenticated. The pipeline retries once before giving up; check stderr in logs for JSON parsing errors.
 # TODO дополнить инструкцией по авторизации (инфо по ссылке в конце) - https://google-gemini.github.io/gemini-cli/docs/cli/authentication.html
 # TODO https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/configuration.md
+# TODO Добавить:
+crontab -l
+SHELL=/bin/zsh
+PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
+* * * * * cd /Users/aleksandr/Documents/Projects/StandUP_project && /opt/homebrew/bin/uv run src/refresh_meta.py >> /Users/aleksandr/Documents/Projects/StandUP_project/logs/standup_meta_refresh.log 2>&1
+
