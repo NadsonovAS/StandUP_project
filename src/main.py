@@ -203,22 +203,27 @@ def trigger_dbt_pipeline_after_video() -> None:
     )
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             command,
             check=False,
             capture_output=True,
             text=True,
         )
     except Exception as exc:
-        logging.error(
-            "Unexpected error when running dbt ",
-            exc,
-        )
-        return
+        logging.exception("Unexpected error when running dbt")
+        raise RuntimeError("Failed to invoke dbt run") from exc
 
-    logging.info(
-        "DBT pipeline completed successfully",
-    )
+    if result.returncode != 0:
+        logging.error(
+            "DBT pipeline failed with return code %s", result.returncode
+        )
+        if result.stdout:
+            logging.error("dbt stdout:\n%s", result.stdout)
+        if result.stderr:
+            logging.error("dbt stderr:\n%s", result.stderr)
+        raise RuntimeError("dbt run exited with a non-zero status")
+
+    logging.info("DBT pipeline completed successfully")
 
 
 def process_single_video(
@@ -287,8 +292,9 @@ def process_playlist(
     repository.insert_new_videos(playlist_info)
     commit()
 
+    processed_videos = 0
     for video in playlist_info:
-        process_single_video(
+        processed = process_single_video(
             video,
             repository,
             downloader=downloader,
@@ -299,8 +305,11 @@ def process_playlist(
             commit=commit,
             settings=settings,
         )
+        if processed:
+            processed_videos += 1
 
-    trigger_dbt_pipeline_after_video()
+    if processed_videos:
+        trigger_dbt_pipeline_after_video()
 
 
 def parse_args() -> argparse.Namespace:

@@ -6,6 +6,7 @@ from minio.error import S3Error
 
 from config import Settings, get_settings
 from models import ProcessVideo
+from utils import try_except_with_log
 
 
 class ObjectStorageClient(Protocol):
@@ -92,6 +93,7 @@ class YoutubeDownloader:
 
         return self._with_client(self._settings.YDL_PLAYLIST_OPTS, _extract)
 
+    @try_except_with_log("Starting audio download")
     def download_audio(
         self,
         storage_client: ObjectStorageClient,
