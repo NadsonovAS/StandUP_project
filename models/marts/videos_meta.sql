@@ -34,9 +34,13 @@ aggregated_laughter as (
     group by cs.video_id
 ),
 video_meta as (
-    select vm.video_id, vm.like_count, vm.view_count, vm.comment_count
-    from {{ref("core_videos_meta")}} vm
-    where snapshot_date in (select max(snapshot_date)  from {{ref("core_videos_meta")}})
+    select distinct on (vm.video_id)
+        vm.video_id,
+        vm.like_count,
+        vm.view_count,
+        vm.comment_count
+    from {{ref("core_videos_meta")}} as vm
+    order by vm.video_id, vm.snapshot_date desc
 )
 select distinct
     ch.channel_name,
@@ -50,7 +54,8 @@ select distinct
     vm.like_count,
     vm.comment_count,
     to_char(make_interval(secs => v.duration), 'HH24:MI:SS') as duration_hms,
-    v.upload_date
+    v.upload_date,
+    date_part('year', v.upload_date)::INT as "year"
 from {{ref("core_videos")}} as v
 join video_meta as vm on vm.video_id = v.video_id
 join {{ref("core_playlists")}} as pl on pl.playlist_id = v.playlist_id

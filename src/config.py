@@ -1,7 +1,5 @@
-from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterator
 
 from pydantic import BaseModel, HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -86,14 +84,3 @@ def get_settings(*, refresh: bool = False, **overrides) -> Settings:
     if overrides:
         return settings.model_copy(update=overrides)
     return settings
-
-
-@contextmanager
-def override_settings(**overrides) -> Iterator[Settings]:
-    """Yield a settings instance with overrides without mutating global state."""
-    current = get_settings()
-    patched = current.model_copy(update=overrides)
-    try:
-        yield patched
-    finally:
-        pass

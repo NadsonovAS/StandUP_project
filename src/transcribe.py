@@ -37,8 +37,3 @@ class ParakeetTranscriber:
             i: {"text": s.text, "start": round(s.start, 2), "end": round(s.end, 2)}
             for i, s in enumerate(result.sentences)
         }
-
-
-def transcribe_audio(audio_path: str) -> Dict[int, Dict[str, Any]]:
-    """Backward-compatible helper using the default transcriber."""
-    return ParakeetTranscriber().transcribe(audio_path)

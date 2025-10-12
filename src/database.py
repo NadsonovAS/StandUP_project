@@ -34,9 +34,7 @@ class ProcessVideoRepository:
 
     @try_except_with_log()
     def fetch_pending_video(self, video_id: str) -> Optional[ProcessVideo]:
-        query = (
-            "SELECT * FROM standup_raw.process_video WHERE video_id = %s"
-        )
+        query = "SELECT * FROM standup_raw.process_video WHERE video_id = %s"
         with self._connection.cursor() as cursor:
             cursor.execute(query, (video_id,))
             record = cursor.fetchone()
@@ -120,3 +118,21 @@ class ProcessVideoRepository:
                     ),
                 )
         return len(unique_new_videos)
+
+    @try_except_with_log()
+    def fetch_unfinished_videos(self) -> list[ProcessVideo]:
+        """Return all videos that have not been fully processed."""
+
+        query = (
+            "SELECT * FROM standup_raw.process_video"
+            # "WHERE process_status IS DISTINCT FROM %s"
+        )
+
+        with self._connection.cursor() as cursor:
+            cursor.execute(query)
+            records = cursor.fetchall() or []
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else []
+            )
+
+        return [self._row_to_model(record, columns) for record in records]

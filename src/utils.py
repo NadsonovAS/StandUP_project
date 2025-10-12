@@ -49,7 +49,9 @@ def remove_audio_cache(settings: Optional[Settings] = None) -> None:
     folder: Path = resolved_settings.DATA_DIR
 
     if not folder.exists():
-        logger.debug("Audio cache directory %s does not exist; nothing to remove", folder)
+        logger.debug(
+            "Audio cache directory %s does not exist; nothing to remove", folder
+        )
         return
 
     for file in folder.iterdir():

@@ -18,7 +18,7 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
 - **CLI tooling:**
   - [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) (pulled automatically via `uv sync`).
   - [`ffmpeg`](https://ffmpeg.org/) on the host (`brew install ffmpeg`).
-  - [Gemini CLI](https://ai.google.dev/gemini-api/docs/get-started) authenticated with an API key and available as the `gemini` executable.
+  - [Gemini CLI](https://ai.google.dev/gemini-api/docs/get-started) authenticated with Google account and available as the `gemini` executable.
 - **Browser cookies:** Safari signed in to YouTube so `yt-dlp` can reuse session cookies.
 
 ## Setup
@@ -139,12 +139,14 @@ StandUP_project
 
 ## Troubleshooting
 - **yt-dlp errors:** Ensure Safari is running and signed into the correct YouTube account so cookie extraction succeeds.
-- **Gemini CLI issues:** Verify `gemini` is on `PATH` and authenticated. The pipeline retries once before giving up; check stderr in logs for JSON parsing errors.
-# TODO дополнить инструкцией по авторизации (инфо по ссылке в конце) - https://google-gemini.github.io/gemini-cli/docs/cli/authentication.html
-# TODO https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/configuration.md
-# TODO Добавить:
-crontab -l
-SHELL=/bin/zsh
-PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin
-* * * * * cd /Users/aleksandr/Documents/Projects/StandUP_project && /opt/homebrew/bin/uv run src/refresh_meta.py >> /Users/aleksandr/Documents/Projects/StandUP_project/logs/standup_meta_refresh.log 2>&1
-
+- **Gemini CLI issues:**
+  - **Authenticate for non-interactive mode:** Complete the interactive login first so the CLI can cache credentials, then export the environment variables below (otherwise the 1,000 messages/day quota is not applied).
+    ```bash
+    Gemini GOOGLE_CLOUD_PROJECT
+    export GOOGLE_APPLICATION_CREDENTIALS="/Users/aleksandr/.config/gcloud/application_default_credentials.json"
+    export GOOGLE_CLOUD_PROJECT="gen-lang-client-123456789"
+    ```
+    Read more about environment configuration in the Gemini CLI docs:
+    - https://google-gemini.github.io/gemini-cli/docs/get-started/authentication.html
+    - https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/configuration.md
+  - **Daily quota reset:** Gemini CLI rate limits reset at 00:00 Pacific Time.

@@ -34,7 +34,9 @@ class SoundClassifierClient:
         self,
         settings: Settings | None = None,
         *,
-        runner: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] = default_runner,
+        runner: Callable[
+            [Sequence[str]], subprocess.CompletedProcess[str]
+        ] = default_runner,
         command_builder: Callable[[str, Settings], list[str]] = build_command,
     ) -> None:
         self._settings = settings or get_settings()
@@ -46,8 +48,3 @@ class SoundClassifierClient:
         command = self._command_builder(audio_path, self._settings)
         completed_process = self._runner(command)
         return json.loads(completed_process.stdout)
-
-
-def get_sound_classifier(audio_path: str) -> Any:
-    """Backward-compatible helper for existing callers."""
-    return SoundClassifierClient().classify(audio_path)

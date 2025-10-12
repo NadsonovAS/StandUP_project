@@ -178,6 +178,7 @@ def update_status(
             video_row.video_meta_json,
             video_row.transcribe_json,
             video_row.llm_chapter_json,
+            video_row.llm_classifier_json,
             video_row.sound_classifier_json,
         ]
     )
@@ -214,9 +215,7 @@ def trigger_dbt_pipeline_after_video() -> None:
         raise RuntimeError("Failed to invoke dbt run") from exc
 
     if result.returncode != 0:
-        logging.error(
-            "DBT pipeline failed with return code %s", result.returncode
-        )
+        logging.error("DBT pipeline failed with return code %s", result.returncode)
         if result.stdout:
             logging.error("dbt stdout:\n%s", result.stdout)
         if result.stderr:
@@ -315,9 +314,16 @@ def process_playlist(
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="URL link to a YouTube video or playlist"
+        description=(
+            "Process a new YouTube playlist or resume unfinished videos from the"
+            " database"
+        )
     )
-    parser.add_argument("argument", help="URL of the video or playlist")
+    parser.add_argument(
+        "--new_playlist",
+        dest="new_playlist",
+        help="URL of the new playlist to ingest",
+    )
     return parser.parse_args()
 
 
@@ -326,8 +332,6 @@ def main() -> None:
     connection = None
     try:
         args = parse_args()
-        youtube_url = VideoURLModel(url=args.argument)
-
         settings = get_settings()
         connection = get_db_connection(settings=settings)
         repository = ProcessVideoRepository(connection)
@@ -344,17 +348,43 @@ def main() -> None:
             secure=False,
         )
 
-        process_playlist(
-            str(youtube_url.url),
-            repository,
-            downloader=downloader,
-            transcriber=transcriber,
-            sound_classifier_client=sound_classifier_client,
-            llm_client=llm_client,
-            storage_client=minio_client,
-            commit=connection.commit,
-            settings=settings,
-        )
+        if args.new_playlist:
+            youtube_url = VideoURLModel(url=args.new_playlist)
+            process_playlist(
+                str(youtube_url.url),
+                repository,
+                downloader=downloader,
+                transcriber=transcriber,
+                sound_classifier_client=sound_classifier_client,
+                llm_client=llm_client,
+                storage_client=minio_client,
+                commit=connection.commit,
+                settings=settings,
+            )
+            return
+
+        pending_videos = repository.fetch_unfinished_videos()
+        logging.info("Checking %s pending videos in the queue", len(pending_videos))
+        time.sleep(3)
+
+        processed_videos = 0
+        for video in pending_videos:
+            processed = process_single_video(
+                video,
+                repository,
+                downloader=downloader,
+                transcriber=transcriber,
+                sound_classifier_client=sound_classifier_client,
+                llm_client=llm_client,
+                storage_client=minio_client,
+                commit=connection.commit,
+                settings=settings,
+            )
+            if processed:
+                processed_videos += 1
+
+        if processed_videos:
+            trigger_dbt_pipeline_after_video()
 
     except ValidationError as exc:
         logging.error("URL validation error: %s", exc)
