@@ -46,27 +46,27 @@ CREATE TABLE IF NOT EXISTS standup_core.videos (
     yt_video_id text UNIQUE NOT NULL,
     playlist_id int REFERENCES standup_core.playlists (playlist_id),
     channel_id int REFERENCES standup_core.channels (channel_id),
-    video_title text,
-    duration int2,
-    upload_date DATE,
+    video_title text NOT NULL,
+    duration int2 NOT NULL,
+    upload_date DATE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now ()
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.videos_meta (
     video_id int REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
     snapshot_date date NOT NULL DEFAULT CURRENT_DATE,
-    like_count int4,
-    view_count int4,
-    comment_count int4,
+    like_count int4 NOT NULL,
+    view_count int4 NOT NULL,
+    comment_count int4 NOT NULL,
     UNIQUE (video_id, snapshot_date)
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
     video_id int REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
-    segment_id int4,
-    start_s float4,
-    end_s float4,
-    text TEXT,
+    segment_id int4 NOT NULL,
+    start_s float4 NOT NULL,
+    end_s float4 NOT NULL,
+    text TEXT NOT NULL,
     PRIMARY KEY (video_id, segment_id)
 );
 

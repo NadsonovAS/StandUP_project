@@ -170,7 +170,7 @@ CLASSIFIER_PROMPT_TEMPLATE = """
 """
 
 
-def default_run_command(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
+def run_command_default(command: Sequence[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
         capture_output=True,
@@ -195,7 +195,7 @@ class GeminiClient:
         *,
         run_command: Callable[
             [Sequence[str]], subprocess.CompletedProcess[str]
-        ] = default_run_command,
+        ] = run_command_default,
         model: str | None = None,
         max_attempts: int = 2,
         command_builder: Callable[[str, str], Sequence[str]] | None = None,
@@ -255,7 +255,7 @@ def build_classifier_prompt(llm_chapter_json: Dict[str, Any]) -> str:
 
 
 @try_except_with_log("Sending Gemini request for topic extraction")
-def llm_summary(
+def request_llm_summary(
     transcribe_json: Dict[str, Dict[str, Any]],
     *,
     client: GeminiClient | None = None,
@@ -273,7 +273,7 @@ def llm_summary(
 
 
 @try_except_with_log("Sending Gemini request for topic classification")
-def llm_classifier(
+def request_llm_classification(
     llm_chapter_json: Dict[str, Any],
     *,
     client: GeminiClient | None = None,

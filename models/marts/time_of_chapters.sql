@@ -8,6 +8,7 @@ with CTE as (
 select
 	v.video_title,
 	cat.main_category,
+	sub.subcategory,
 	seg_end.end_s - seg_start.start_s as duration,
     date_part('year', v.upload_date)::INT as "year"
 from
@@ -25,9 +26,9 @@ join {{source("standup_core", "subcategories")}} as sub on
 join {{source("standup_core", "categories")}} as cat on
 	cat.category_id = sub.category_id)
 select
-	cte.main_category, cte.video_title,
-	sum(cte.duration) /3600 as total, cte."year"
+	cte.main_category, cte.subcategory, cte.video_title,
+	sum(cte.duration) / 3600 as total, cte."year"
 from
 	CTE
 group by
-	cte.main_category, cte.video_title, cte."year"
+	cte.main_category, cte.subcategory, cte.video_title, cte."year"

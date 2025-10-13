@@ -1,24 +1,13 @@
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Protocol
+from typing import Any, Callable, Dict, Iterable, List
 
 import yt_dlp
+from minio import Minio
 from minio.error import S3Error
 
 from config import Settings, get_settings
 from models import ProcessVideo
 from utils import try_except_with_log
-
-
-class ObjectStorageClient(Protocol):
-    def stat_object(self, bucket_name: str, object_name: str) -> Any: ...
-
-    def fget_object(
-        self, bucket_name: str, object_name: str, file_path: str
-    ) -> Any: ...
-
-    def fput_object(
-        self, bucket_name: str, object_name: str, file_path: str
-    ) -> Any: ...
 
 
 def build_audio_artifacts(
@@ -96,7 +85,7 @@ class YoutubeDownloader:
     @try_except_with_log("Starting audio download")
     def download_audio(
         self,
-        storage_client: ObjectStorageClient,
+        storage_client: Minio,
         video_url: str,
         video_id: str,
     ) -> Path:

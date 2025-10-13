@@ -20,14 +20,14 @@ class ParakeetTranscriber:
         self._overlap_duration = overlap_duration
         self._model: Any | None = None
 
-    def _ensure_model(self) -> Any:
+    def load_model_if_needed(self) -> Any:
         if self._model is None:
             self._model = self._model_loader()
         return self._model
 
     @try_except_with_log("Starting audio transcription")
-    def transcribe(self, audio_path: str) -> Dict[int, Dict[str, Any]]:
-        model = self._ensure_model()
+    def transcribe_audio(self, audio_path: str) -> Dict[int, Dict[str, Any]]:
+        model = self.load_model_if_needed()
         result = model.transcribe(
             audio_path,
             chunk_duration=self._chunk_duration,

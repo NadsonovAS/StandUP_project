@@ -2,7 +2,9 @@
 
 StandUP automates the ingestion and analysis of stand-up comedy playlists from YouTube. The pipeline downloads audio, transcribes routines, detects laughter events, summarises segments with Gemini, and materialises analytics-ready tables with dbt backed by PostgreSQL and MinIO storage.
 
-![Pipeline overview](image.png)
+![Pipeline overview](./standup_project.png)
+![Pipeline overview](./Superset_exmpl.png)
+
 
 ## Highlights
 - Automates YouTube playlist ingestion with `yt-dlp`, normalises metadata, and stores raw inputs in PostgreSQL.
