@@ -1,7 +1,8 @@
 import argparse
 import logging
 import subprocess
-import time
+
+# import time
 from datetime import date
 from typing import Any, Callable
 
@@ -88,7 +89,7 @@ def update_video_metadata(
             commit=commit,
             force_update=True,
         )
-        time.sleep(1)
+        # time.sleep(1)
 
 
 def process_audio_and_transcription(
@@ -100,35 +101,52 @@ def process_audio_and_transcription(
     storage_client: Minio,
     commit: Callable[[], None],
 ) -> None:
-    if not video_row.video_url or not video_row.video_title:
+    if not video_row.video_url:
         return
 
-    needs_audio = (
-        video_row.transcribe_json is None or video_row.sound_classifier_json is None
-    )
-    if not needs_audio:
+    needs_transcription = video_row.transcribe_json is None
+    needs_sound_classifier = video_row.sound_classifier_json is None
+    needs_laugh_events = video_row.laugh_events_json is None
+
+    if not (needs_transcription or needs_sound_classifier or needs_laugh_events):
         return
 
-    audio_path = downloader.download_audio(
-        storage_client, video_row.video_url, video_row.video_id
-    )
-    video_row.audio_path = str(audio_path)
+    audio_path_str: str | None = None
+    if needs_transcription or needs_sound_classifier:
+        audio_path = downloader.download_audio(
+            storage_client, video_row.video_url, video_row.video_id
+        )
+        audio_path_str = str(audio_path)
+        video_row.audio_path = audio_path_str
 
-    update_field_if_missing(
-        video_row,
-        repository,
-        "transcribe_json",
-        lambda: transcriber.transcribe_audio(str(audio_path)),
-        commit=commit,
-    )
+    if needs_transcription and audio_path_str:
+        update_field_if_missing(
+            video_row,
+            repository,
+            "transcribe_json",
+            lambda: transcriber.transcribe_audio(audio_path_str),
+            commit=commit,
+        )
 
-    update_field_if_missing(
-        video_row,
-        repository,
-        "sound_classifier_json",
-        lambda: sound_classifier.classify_audio(str(audio_path)),
-        commit=commit,
-    )
+    if needs_sound_classifier and audio_path_str:
+        update_field_if_missing(
+            video_row,
+            repository,
+            "sound_classifier_json",
+            lambda: sound_classifier.classify_audio(audio_path_str),
+            commit=commit,
+        )
+
+    if needs_laugh_events:
+        update_field_if_missing(
+            video_row,
+            repository,
+            "laugh_events_json",
+            lambda: sound_classifier.build_laugh_events_payload(
+                video_row.sound_classifier_json
+            ),
+            commit=commit,
+        )
 
 
 def run_llm_tasks(
@@ -182,9 +200,10 @@ def update_status(
             video_row.llm_chapter_json,
             video_row.llm_classifier_json,
             video_row.sound_classifier_json,
+            video_row.laugh_events_json,
         ]
     )
-    if completed and video_row.video_id:
+    if completed:
         video_row.process_status = "finished"
         repository.update_video_field(
             video_row.video_id,
@@ -198,12 +217,7 @@ def update_status(
 def run_dbt_pipeline() -> None:
     """Run the dbt pipeline."""
 
-    command = (
-        "uv",
-        "run",
-        "dbt",
-        "run",
-    )
+    command = ("uv", "run", "dbt", "run")
 
     try:
         result = subprocess.run(

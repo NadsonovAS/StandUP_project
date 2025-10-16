@@ -18,6 +18,7 @@ class ProcessVideo(BaseModel):
     llm_chapter_json: dict[str, Any] | None = Field(default_factory=dict)
     llm_classifier_json: dict[str, Any] | None = Field(default_factory=dict)
     sound_classifier_json: dict[str, Any] | None = Field(default_factory=dict)
+    laugh_events_json: dict[str, Any] | None = Field(default_factory=dict)
 
     audio_path: str | None = None
     process_status: str | None = None

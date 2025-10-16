@@ -60,10 +60,13 @@ class Settings(BaseSettings):
     }
 
     # === Sound analysis settings ===
-    WINDOW_DURATION_SECONDS: int = 1
+    WINDOW_DURATION_SECONDS: float = 0.5
     PREFERRED_TIMESCALE: int = 600
-    CONFIDENCE_THRESHOLD: float = 0.5
-    OVERLAP_FACTOR: float = 0.8
+    CONFIDENCE_THRESHOLD: float = 0.2
+    OVERLAP_FACTOR: float = 0.9
+    LAUGH_EVENT_AVG_CONFIDENCE_THRESHOLD: float = 0.3
+    LAUGH_EVENT_MIN_DURATION_SECONDS: float = 0.4
+    LAUGH_EVENT_MAX_GAP_SECONDS: float = 0.2
 
     # === Gemini Configuration ===
     GEMINI_MODEL: str = "gemini-2.5-pro"

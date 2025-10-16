@@ -25,6 +25,19 @@ clean-targets:         # directories to be removed by `dbt clean`
 # Full documentation: https://docs.getdbt.com/docs/configuring-models
 models:
   standup_project:
+    staging:
+      +schema: standup_staging
+      +materialized: view
     core:
       +schema: standup_core
       +materialized: incremental
+    dds:
+      +schema: standup_dds
+      dimensions:
+        +materialized: table
+    facts:
+      +materialized: incremental
+      +on_schema_change: sync_all_columns
+    marts:
+      +schema: standup_mart
+      +materialized: view

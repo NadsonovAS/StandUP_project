@@ -6,48 +6,39 @@
     alias='chapters'
 ) }}
 
-with chapter as (
+with stg_chapters as (
+	select
+		yt_video_id,
+		start_segment_id,
+		end_segment_id
+	from {{ ref("stg_chapters") }} stg_ch
+	where is_valid is TRUE),
+stg_classifications as (
+	select
+		yt_video_id,
+		start_segment_id,
+		main_category,
+		subcategory
+	from {{ ref("stg_classifications") }} stg_cl
+	where is_valid is TRUE)
 select
-	pr.video_id,
-	ch.id,
-	ch.end_id
-from {{ source('standup_raw','process_video') }} pr
-cross join lateral jsonb_to_recordset(pr.llm_chapter_json -> 'chapters')
-    as ch(id int, end_id int, theme text, summary text)
-where
-	pr.process_status = 'finished'),
-classifications as (
-select
-	pr.video_id ,
-	cl.id,
-	cl.main_category,
-	cl.subcategory
-from {{ source('standup_raw','process_video') }} pr
-cross join lateral jsonb_to_recordset(pr.llm_classifier_json -> 'classifications')
-	as cl (id int,
-	main_category text,
-	subcategory text,
-	reason text)
-where
-	pr.process_status = 'finished')
-select
-	v.video_id,
-	ch.id as start_segment_id,
-	ch.end_id as end_segment_id,
+	cv.video_id,
+	stg_ch.start_segment_id,
+	stg_ch.end_segment_id,
 	sub.subcategory_id
 from
-	chapter ch
-join standup_core.videos v on
-	v.yt_video_id = ch.video_id
-join classifications cl on
-	ch.video_id = cl.video_id
-	and ch.id = cl.id
-join standup_core.subcategories sub on
-	sub.subcategory = cl.subcategory
+	stg_chapters stg_ch
+join {{ref("core_videos")}} cv on
+	cv.yt_video_id = stg_ch.yt_video_id
+join stg_classifications stg_cl on
+	stg_ch.yt_video_id = stg_cl.yt_video_id
+	and stg_ch.start_segment_id = stg_cl.start_segment_id
+join {{source('standup_core', 'subcategories')}} sub on
+	sub.subcategory = stg_cl.subcategory
 {% if is_incremental() %}
 where not exists (
     select 1
     from {{ this }} existing
-    where existing.video_id = v.video_id
+    where existing.video_id = cv.video_id
 )
 {% endif %}

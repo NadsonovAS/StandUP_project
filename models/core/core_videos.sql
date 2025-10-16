@@ -3,27 +3,26 @@
     alias='videos'
 ) }}
 
-with source_channels as (
-    select video_id as yt_video_id, 
+with stg_videos_base as (
+    select stg_v.yt_video_id,
     ch.channel_id,
     pl.playlist_id,
     video_title,
-    video_url,
-    (video_meta_json ->> 'duration')::int2 as duration,
-    (video_meta_json ->> 'upload_date')::DATE as upload_date
-    from {{ source('standup_raw','process_video') }} pr
-    join {{ ref("core_channels") }} ch on ch.yt_channel_id =  pr.channel_id
-    join {{ ref("core_playlists")}} pl on pl.yt_playlist_id =  pr.playlist_id
-    where process_status = 'finished'
+    duration,
+    upload_date
+    from {{ ref("stg_videos_base") }} stg_v
+    join {{ ref("core_channels") }} ch on ch.yt_channel_id =  stg_v.yt_channel_id
+    join {{ ref("core_playlists")}} pl on pl.yt_playlist_id =  stg_v.yt_playlist_id
+    where is_valid is true
 )
 
 
 select nextval('standup_core.videos_video_id_seq') as video_id, *, current_timestamp as created_at
-from source_channels sc
+from stg_videos_base stg_v
 {% if is_incremental() %}
 where not exists (
     select 1
     from {{ this }} existing
-    where existing.yt_video_id = sc.yt_video_id
+    where existing.yt_video_id = stg_v.yt_video_id
 )
 {% endif %}

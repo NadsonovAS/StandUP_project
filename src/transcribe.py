@@ -1,5 +1,6 @@
 from typing import Any, Dict
 
+from mlx import core
 from parakeet_mlx import from_pretrained
 
 from utils import try_except_with_log
@@ -33,6 +34,7 @@ class ParakeetTranscriber:
             chunk_duration=self._chunk_duration,
             overlap_duration=self._overlap_duration,
         )
+        core.clear_cache()
         return {
             i: {"text": s.text, "start": round(s.start, 2), "end": round(s.end, 2)}
             for i, s in enumerate(result.sentences)

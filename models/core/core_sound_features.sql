@@ -3,22 +3,27 @@
     alias='sound_features'
 ) }}
 
-with source_channels as (
+with stg_sound_features as (
     select 
-        v.video_id,
-        (j.key)::float  as time_offset,
-        (j.value)::float as score
-    from {{ source('standup_raw','process_video') }} pr
-    cross join lateral jsonb_each_text(pr.sound_classifier_json) as j(key, value)
-    join {{ref("core_videos")}} as v on v.yt_video_id = pr.video_id
+        cv.video_id,
+        stg_sf."sequence",
+        stg_sf.points,
+        stg_sf.duration_seconds,
+        stg_sf.start_seconds,
+        stg_sf.end_seconds,
+        stg_sf.avg_confidence,
+        stg_sf.max_confidence
+    from {{ ref("stg_sound_features") }} stg_sf
+    join {{ref("core_videos")}} cv on cv.yt_video_id = stg_sf.yt_video_id
+    where stg_sf.is_valid is TRUE
 )
 
 select *
-from source_channels sc
+from stg_sound_features stg_sf
 {% if is_incremental() %}
 where not exists (
     select 1
     from {{ this }} existing
-    where existing.video_id = sc.video_id
+    where existing.video_id = stg_sf.video_id
 )
 {% endif %}

@@ -3,24 +3,25 @@
     alias='transcript_segments'
 ) }}
 
-with source_channels as (
+with stg_transcripts as (
     select
         v.video_id , 
-        j.key::int4 as segment_id,
-        (j.value ->> 'text')::text AS "text", 
-        (j.value ->> 'start')::float AS "start_s", 
-        (j.value ->> 'end')::float AS "end_s"
-    from {{ source('standup_raw','process_video') }} pr
-    cross join lateral jsonb_each(pr.transcribe_json) as j(key, value)
-    join {{ref("core_videos")}} as v on v.yt_video_id = pr.video_id
+        stg_tr.yt_video_id,
+        stg_tr.segment_id,
+        stg_tr.segment_text,
+        stg_tr.start_s,
+        stg_tr.end_s
+    from {{ ref("stg_transcripts") }} stg_tr
+    join {{ref("core_videos")}} as v on v.yt_video_id = stg_tr.yt_video_id
+    where stg_tr.is_valid is TRUE
 )
 
 select *
-from source_channels sc
+from stg_transcripts stg_tr
 {% if is_incremental() %}
 where not exists (
     select 1
     from {{ this }} existing
-    where existing.video_id = sc.video_id
+    where existing.video_id = stg_tr.video_id
 )
 {% endif %}

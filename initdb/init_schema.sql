@@ -4,6 +4,8 @@ CREATE SCHEMA IF NOT EXISTS standup_raw;
 
 CREATE SCHEMA IF NOT EXISTS standup_core;
 
+CREATE SCHEMA IF NOT EXISTS standup_dds;
+
 CREATE SCHEMA IF NOT EXISTS standup_mart;
 
 -- 2) Create Table
@@ -21,6 +23,7 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     llm_chapter_json JSONB,
     llm_classifier_json JSONB,
     sound_classifier_json JSONB,
+    laugh_events_json JSONB,
     process_status TEXT,
     created_at TIMESTAMPTZ DEFAULT now (),
     meta_updated_at TIMESTAMPTZ
@@ -66,7 +69,7 @@ CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
     segment_id int4 NOT NULL,
     start_s float4 NOT NULL,
     end_s float4 NOT NULL,
-    text TEXT NOT NULL,
+    segment_text TEXT NOT NULL,
     PRIMARY KEY (video_id, segment_id)
 );
 
@@ -153,10 +156,15 @@ VALUES
     (50, 10, 'Surreal or absurd comedy') ON CONFLICT (subcategory_id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS standup_core.sound_features (
-    video_id int REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
-    time_offset float4,
-    score float4,
-    PRIMARY KEY (video_id, time_offset)
+    video_id int4 REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
+    "sequence" int4,
+    points int4,
+    duration_seconds float4,
+    start_seconds float4,
+    end_seconds float4,
+    avg_confidence float4,
+    max_confidence float4,
+    PRIMARY KEY (video_id, "sequence")
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.chapters (
