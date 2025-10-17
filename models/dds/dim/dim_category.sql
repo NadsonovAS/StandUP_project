@@ -1,7 +1,6 @@
 {{ config(
     materialized='table',
     indexes=[
-      {'columns': ['category_id'], 'unique': True},
       {'columns': ['main_category']}
     ],
     post_hook=[
@@ -13,4 +12,4 @@
 SELECT
     category_id,
     main_category
-FROM {{ source('standup_core', 'categories') }}
+FROM {{ source('standup_core', 'core_categories') }}

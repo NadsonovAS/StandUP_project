@@ -12,7 +12,7 @@ WITH process_video AS (
 
 parsed_features AS (
     SELECT
-        video_id::TEXT as yt_video_id,
+        video_id::TEXT as video_id,
 	    le.*
     FROM process_video
     cross join lateral jsonb_to_recordset(laugh_events_json -> 'events')
@@ -26,7 +26,7 @@ parsed_features AS (
 )
 
 SELECT 
-    yt_video_id,
+    video_id,
     "sequence",
 	points,
 	duration_seconds,

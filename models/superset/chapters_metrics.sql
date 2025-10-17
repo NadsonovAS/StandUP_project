@@ -1,7 +1,6 @@
 {{ config(
-    schema='standup_mart',
+    schema='superset',
     materialized='view',
-    alias='chapters_metrics'
 ) }}
 
 select

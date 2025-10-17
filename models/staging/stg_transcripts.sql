@@ -1,11 +1,10 @@
 {{ config(
     materialized='view',
-    alias='stg_transcripts'
 ) }}
 
 WITH raw_transcripts AS (
     SELECT 
-        pr.video_id as yt_video_id,
+        pr.video_id as video_id,
         pr.transcribe_json
     FROM {{ source('standup_raw', 'process_video') }} pr
     WHERE process_status = 'finished' AND transcribe_json IS NOT NULL
@@ -13,7 +12,7 @@ WITH raw_transcripts AS (
 
 parsed_segments AS (
     SELECT
-        yt_video_id::TEXT,
+        video_id::TEXT,
 
         -- JSON extract with type
         (segment.key)::INT as segment_id,
@@ -21,12 +20,12 @@ parsed_segments AS (
         (segment.value ->> 'start')::FLOAT as start_s,
         (segment.value ->> 'end')::FLOAT as end_s
         
-    FROM raw_transcripts
+FROM raw_transcripts
     CROSS JOIN LATERAL jsonb_each(transcribe_json) as segment
 )
 
 SELECT 
-    yt_video_id,
+    video_id,
     segment_id,
     TRIM(segment_text) as segment_text,
     start_s,

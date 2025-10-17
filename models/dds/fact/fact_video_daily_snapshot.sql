@@ -41,8 +41,6 @@ from
 	videos_meta vm
 join {{ref("core_videos")}} as v on
 	v.video_id = vm.video_id
-join {{ref("core_playlists")}} as pl on
-    v.playlist_id = pl.playlist_id
 join {{ref("dim_date")}} dd on dd.date = vm.snapshot_date
 group by
 	dd.date_id,

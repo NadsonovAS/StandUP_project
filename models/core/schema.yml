@@ -1,0 +1,306 @@
+version: 2
+models:
+  - name: core_channels
+    description: "Справочник YouTube каналов Core-слоя"
+    columns:
+      - name: channel_id
+        description: "Натуральный идентификатор канала (YouTube id), используемый как первичный ключ"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: channel_name
+        description: "Название канала"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: created_at
+        description: "Метка загрузки записи в DWH"
+        tests:
+          - not_null
+  - name: core_playlists
+    description: "Справочник YouTube плейлистов Core-слоя"
+    columns:
+      - name: playlist_id
+        description: "Натуральный идентификатор плейлиста (YouTube id), используемый как первичный ключ"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: playlist_title
+        description: "Название плейлиста"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: created_at
+        description: "Метка загрузки записи в DWH"
+        tests:
+          - not_null
+  - name: core_videos
+    description: "Таблица видеороликов с основными атрибутами"
+    columns:
+      - name: video_id
+        description: "Натуральный идентификатор видео (YouTube id), используемый как первичный ключ"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: channel_id
+        description: "Внешний ключ на core_channels"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_channels')
+                field: channel_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('core_channels')
+            to_columns: [channel_id]
+      - name: video_title
+        description: "Название видео"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: duration
+        description: "Продолжительность видео в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: playlist_id
+        description: "Внешний ключ на core_playlists"
+        tests:
+          - relationships:
+              arguments:
+                to: ref('core_playlists')
+                field: playlist_id
+        constraints:
+          - type: foreign_key
+            to: ref('core_playlists')
+            to_columns: [playlist_id]
+      - name: upload_date
+        description: "Дата публикации видео на YouTube"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: created_at
+        description: "Метка загрузки записи в DWH"
+        tests:
+          - not_null
+  - name: core_videos_meta
+    description: "Ежедневные снимки метрик YouTube по каждому видео"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [video_id, snapshot_date]
+    constraints:
+      - type: primary_key
+        columns: [video_id, snapshot_date]
+    columns:
+      - name: video_id
+        description: "Внешний ключ на core_videos"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_videos')
+                field: video_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('core_videos')
+            to_columns: [video_id]
+      - name: snapshot_date
+        description: "Дата фиксации метрик"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: view_count
+        description: "Количество просмотров на дату снимка"
+      - name: like_count
+        description: "Количество лайков на дату снимка"
+      - name: comment_count
+        description: "Количество комментариев на дату снимка"
+  - name: core_transcript_segments
+    description: "Сегменты транскрипции, нормализованные для Core-слоя"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [video_id, segment_id]
+    constraints:
+      - type: primary_key
+        columns: [video_id, segment_id]
+    columns:
+      - name: video_id
+        description: "Внешний ключ на core_videos"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_videos')
+                field: video_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('core_videos')
+            to_columns: [video_id]
+      - name: segment_id
+        description: "Порядковый номер сегмента транскрипции внутри видео"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: start_s
+        description: "Момент начала сегмента в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: end_s
+        description: "Момент окончания сегмента в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: segment_text
+        description: "Текст транскрипции сегмента"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+  - name: core_sound_features
+    description: "Детектированные эпизоды смеха по каждому видео"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [video_id, sequence]
+    constraints:
+      - type: primary_key
+        columns: [video_id, sequence]
+    columns:
+      - name: video_id
+        description: "Внешний ключ на core_videos"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_videos')
+                field: video_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('core_videos')
+            to_columns: [video_id]
+      - name: sequence
+        description: "Порядковый номер эпизода смеха в рамках видео"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: points
+        description: "Количество точек детектора, сформировавших эпизод"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: start_seconds
+        description: "Начало эпизода смеха в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: end_seconds
+        description: "Конец эпизода смеха в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: duration_seconds
+        description: "Длительность эпизода смеха"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: avg_confidence
+        description: "Средняя уверенность классификатора смеха по эпизоду"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: max_confidence
+        description: "Максимальная уверенность классификатора смеха по эпизоду"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+  - name: core_chapters
+    description: "Главы видео с привязкой к подкатегориям контента"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [video_id, start_segment_id, subcategory_id]
+      - dbt_utils.equal_rowcount:
+          arguments:
+            compare_model: ref('stg_chapters')
+    constraints:
+      - type: primary_key
+        columns: [video_id, start_segment_id, subcategory_id]
+    columns:
+      - name: video_id
+        description: "Внешний ключ на core_videos"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_videos')
+                field: video_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('core_videos')
+            to_columns: [video_id]
+      - name: subcategory_id
+        description: "Внешний ключ на standup_core.core_subcategories"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('standup_core', 'core_subcategories')
+                field: subcategory_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: source('standup_core', 'core_subcategories')
+            to_columns: [subcategory_id]
+      - name: start_segment_id
+        description: "Идентификатор сегмента начала главы"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_transcript_segments')
+                field: segment_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('core_transcript_segments')
+            to_columns: [segment_id]
+      - name: end_segment_id
+        description: "Идентификатор сегмента окончания главы"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('core_transcript_segments')
+                field: segment_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('core_transcript_segments')
+            to_columns: [segment_id]

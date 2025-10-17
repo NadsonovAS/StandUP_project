@@ -33,11 +33,10 @@ models:
       +materialized: incremental
     dds:
       +schema: standup_dds
-      dimensions:
+      dim:
         +materialized: table
-    facts:
-      +materialized: incremental
-      +on_schema_change: sync_all_columns
-    marts:
-      +schema: standup_mart
+      fact:
+        +materialized: table
+    superset:
+      +schema: superset
       +materialized: view

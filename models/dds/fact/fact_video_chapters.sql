@@ -24,7 +24,7 @@ select
 	round((tr2.end_s - tr1.start_s)::numeric, 2) as duration
 from
 		{{ref("core_chapters")}} ch
-join {{source('standup_core', 'subcategories')}} sub on
+join {{source('standup_core', 'core_subcategories')}} sub on
 		sub.subcategory_id = ch.subcategory_id
 join {{ref("core_transcript_segments")}} tr1 on
 		tr1.video_id = ch.video_id

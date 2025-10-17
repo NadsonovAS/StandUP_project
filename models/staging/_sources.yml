@@ -1,13 +1,71 @@
 version: 2
-
 sources:
   - name: standup_raw
     schema: standup_raw
     tables:
       - name: process_video
+        description: "Исходная таблица с результатами пайплайна обработки YouTube видео"
+        columns:
+          - name: video_id
+            description: "Идентификатор YouTube видео из источника"
+            constraints:
+              - type: primary_key
+          - name: channel_id
+            description: "Идентификатор YouTube канала из источника"
+          - name: channel_name
+            description: "Название YouTube канала из источника"
+          - name: playlist_id
+            description: "Идентификатор YouTube плейлиста из источника"
+          - name: playlist_title
+            description: "Название YouTube плейлиста из источника"
+          - name: video_title
+            description: "Название YouTube видео из источника"
+          - name: video_url
+            description: "URL видео на YouTube"
+          - name: video_meta_json
+            description: "JSON с метаданными видео"
+          - name: transcribe_json
+            description: "JSON с результатами транскрибации"
+          - name: llm_chapter_json
+            description: "JSON с главами, сгенерированными LLM"
+          - name: llm_classifier_json
+            description: "JSON с классификацией глав от LLM"
+          - name: sound_classifier_json
+            description: "JSON с результатами работы аудио-классификатора"
+          - name: laugh_events_json
+            description: "JSON с эпизодами смеха, агрегированными из sound_classifier_json"
+          - name: process_status
+            description: "Технический статус обработки видео в пайплайне"
+          - name: meta_updated_at
+            description: "Метка последнего обновления метаданных в источнике"
   - name: standup_core
     schema: standup_core
     tables:
-      - name: categories
-      - name: subcategories
-
+      - name: core_categories
+        description: "Справочник основных категорий контента"
+        columns:
+          - name: category_id
+            description: "Идентификатор категории"
+            constraints:
+              - type: primary_key
+          - name: main_category
+            description: "Название категории"
+            constraints:
+              - type: not_null
+      - name: core_subcategories
+        description: "Справочник подкатегорий контента"
+        columns:
+          - name: subcategory_id
+            description: "Идентификатор подкатегории"
+            constraints:
+              - type: primary_key
+          - name: subcategory
+            description: "Название подкатегории"
+            constraints:
+              - type: not_null
+          - name: category_id
+            description: "Внешний ключ на standup_core.core_categories"
+            constraints:
+              - type: foreign_key
+                to: source('standup_core', 'core_categories')
+                to_columns: [category_id]

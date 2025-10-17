@@ -1,6 +1,5 @@
 {{ config(
     materialized='view',
-    alias='stg_chapters'
 ) }}
 
 WITH process_video AS (
@@ -13,7 +12,7 @@ WITH process_video AS (
 
 parsed_chapters AS (
     SELECT
-        video_id::TEXT as yt_video_id,
+        video_id::TEXT as video_id,
         ch.id as start_segment_id,
         ch.end_id as end_segment_id,
         ch.theme as chapter_theme,
@@ -24,7 +23,7 @@ parsed_chapters AS (
 )
 
 SELECT 
-    yt_video_id,
+    video_id,
     start_segment_id,
     end_segment_id,
     TRIM(chapter_theme) as chapter_theme,

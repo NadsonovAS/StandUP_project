@@ -1,6 +1,5 @@
 {{ config(
     materialized='view',
-    alias='stg_classification'
 ) }}
 
 WITH process_video AS (
@@ -13,7 +12,7 @@ WITH process_video AS (
 
 parsed_chapters AS (
     SELECT
-        video_id::TEXT as yt_video_id,
+        video_id::TEXT as video_id,
         cl.id as start_segment_id,
         cl.reason as reason,
         cl.subcategory as subcategory,
@@ -24,7 +23,7 @@ parsed_chapters AS (
 )
 
 SELECT 
-    yt_video_id,
+    video_id,
     start_segment_id,
     TRIM(reason) as reason,
     TRIM(subcategory) as subcategory,

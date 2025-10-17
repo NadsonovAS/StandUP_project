@@ -12,6 +12,5 @@
 
 SELECT
     channel_id,
-    yt_channel_id,
     channel_name
 FROM {{ ref('core_channels') }}

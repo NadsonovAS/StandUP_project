@@ -1,0 +1,373 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: "Календарный справочник для аналитических витрин StandUp DWH"
+    columns:
+      - name: date_id
+        description: "Суррогатный идентификатор даты в формате YYYYMMDD"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: date
+        description: "Календарная дата"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: not_null
+          - type: unique
+      - name: year
+        description: "Год соответствующей даты"
+      - name: quarter
+        description: "Квартал соответствующей даты (1-4)"
+      - name: month
+        description: "Номер месяца"
+      - name: month_name
+        description: "Название месяца"
+      - name: week_of_year
+        description: "Номер недели в году"
+      - name: day_of_week
+        description: "Порядковый номер дня недели в ISO-формате (1 - понедельник)"
+      - name: day_name
+        description: "Название дня недели"
+      - name: is_weekend
+        description: "Флаг выходного дня"
+
+  - name: dim_channels
+    description: "Справочник YouTube каналов"
+    columns:
+      - name: channel_id
+        description: "Первичный ключ канала (YouTube id)"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: channel_name
+        description: "Наименование канала"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+
+  - name: dim_playlists
+    description: "Справочник YouTube плейлистов"
+    columns:
+      - name: playlist_id
+        description: "Первичный ключ плейлиста (YouTube id)"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: playlist_title
+        description: "Наименование плейлиста"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+
+  - name: dim_videos
+    description: "Справочник видеороликов"
+    columns:
+      - name: video_id
+        description: "Первичный ключ видеоролика (YouTube id)"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: video_title
+        description: "Наименование видеоролика"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+
+  - name: dim_category
+    description: "Справочник основных категорий контента"
+    columns:
+      - name: category_id
+        description: "Первичный ключ категории"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: main_category
+        description: "Наименование категории"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: not_null
+          - type: unique
+
+  - name: dim_subcategory
+    description: "Справочник подкатегорий контента"
+    columns:
+      - name: subcategory_id
+        description: "Первичный ключ подкатегории"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: subcategory
+        description: "Наименование подкатегории"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: not_null
+          - type: unique
+
+  - name: fact_video_chapters
+    description: "Факт-таблица эпизодов видео с детализацией по главам и доле смеха"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [video_id, subcategory_id, start_s]
+    constraints:
+      - type: primary_key
+        columns: [video_id, subcategory_id, start_s]
+    columns:
+      - name: video_id
+        description: "Внешний ключ на dim_videos"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_videos')
+                field: video_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_videos')
+            to_columns: [video_id]
+      - name: date_id
+        description: "Дата загрузки видео, внешний ключ на dim_date"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_date')
+            to_columns: [date_id]
+      - name: channel_id
+        description: "Внешний ключ на dim_channels"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channels')
+                field: channel_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_channels')
+            to_columns: [channel_id]
+      - name: playlist_id
+        description: "Внешний ключ на dim_playlists"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_playlists')
+                field: playlist_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_playlists')
+            to_columns: [playlist_id]
+      - name: subcategory_id
+        description: "Внешний ключ на dim_subcategory"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_subcategory')
+                field: subcategory_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_subcategory')
+            to_columns: [subcategory_id]
+      - name: category_id
+        description: "Внешний ключ на dim_category"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_category')
+                field: category_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_category')
+            to_columns: [category_id]
+      - name: start_s
+        description: "Начало главы в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: end_s
+        description: "Окончание главы в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: duration
+        description: "Длительность главы в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: laughter_percent
+        description: "Доля времени главы, в течение которого детектирован смех (в процентах)"
+
+  - name: fact_video_daily_snapshot
+    description: "Факт-таблица дневных изменений метрик по видео"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [video_id, date_id]
+    constraints:
+      - type: primary_key
+        columns: [video_id, date_id]
+    columns:
+      - name: video_id
+        description: "Внешний ключ на dim_videos"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_videos')
+                field: video_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_videos')
+            to_columns: [video_id]
+      - name: date_id
+        description: "Дата снимка метрик, внешний ключ на dim_date"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_date')
+            to_columns: [date_id]
+      - name: channel_id
+        description: "Внешний ключ на dim_channels"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channels')
+                field: channel_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_channels')
+            to_columns: [channel_id]
+      - name: playlist_id
+        description: "Внешний ключ на dim_playlists"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_playlists')
+                field: playlist_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_playlists')
+            to_columns: [playlist_id]
+      - name: prev_day_view
+        description: "Изменение количества просмотров по сравнению с предыдущим днем"
+      - name: prev_day_like
+        description: "Изменение количества лайков по сравнению с предыдущим днем"
+      - name: prev_day_comment
+        description: "Изменение количества комментариев по сравнению с предыдущим днем"
+
+  - name: fact_video_metrics
+    description: "Факт-таблица финальных метрик по видео на дату загрузки"
+    columns:
+      - name: video_id
+        description: "Внешний ключ на dim_videos"
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('dim_videos')
+                field: video_id
+        constraints:
+          - type: primary_key
+          - type: foreign_key
+            to: ref('dim_videos')
+            to_columns: [video_id]
+      - name: playlist_id
+        description: "Внешний ключ на dim_playlists"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_playlists')
+                field: playlist_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_playlists')
+            to_columns: [playlist_id]
+      - name: channel_id
+        description: "Внешний ключ на dim_channels"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channels')
+                field: channel_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_channels')
+            to_columns: [channel_id]
+      - name: date_id
+        description: "Дата загрузки видео, внешний ключ на dim_date"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_id
+        constraints:
+          - type: not_null
+          - type: foreign_key
+            to: ref('dim_date')
+            to_columns: [date_id]
+      - name: view_count
+        description: "Актуальное количество просмотров"
+      - name: like_count
+        description: "Актуальное количество лайков"
+      - name: comment_count
+        description: "Актуальное количество комментариев"
+      - name: duration
+        description: "Продолжительность видео в секундах"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
+      - name: laughter_percent
+        description: "Доля продолжительности видео с детектированным смехом (в процентах)"

@@ -1,6 +1,5 @@
 {{ config(
     materialized='view',
-    alias='stg_videos_base'
 ) }}
 
 WITH process_video AS (
@@ -20,9 +19,9 @@ WITH process_video AS (
 
 SELECT
     -- Youtube ID
-    video_id::TEXT as yt_video_id,
-    channel_id::TEXT as yt_channel_id,
-    playlist_id::TEXT as yt_playlist_id,
+    video_id::TEXT as video_id,
+    channel_id::TEXT as channel_id,
+    playlist_id::TEXT as playlist_id,
     
     -- Name TEXT clean
     TRIM(video_title)::TEXT as video_title,

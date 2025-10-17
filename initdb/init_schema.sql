@@ -6,12 +6,11 @@ CREATE SCHEMA IF NOT EXISTS standup_core;
 
 CREATE SCHEMA IF NOT EXISTS standup_dds;
 
-CREATE SCHEMA IF NOT EXISTS standup_mart;
+CREATE SCHEMA IF NOT EXISTS superset;
 
--- 2) Create Table
--- RAW Tables
+-- 2) Create Raw Table
 CREATE TABLE IF NOT EXISTS standup_raw.process_video (
-    channel_id varchar(25),
+    channel_id TEXT,
     channel_name TEXT,
     playlist_id TEXT,
     playlist_title TEXT,
@@ -29,44 +28,41 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     meta_updated_at TIMESTAMPTZ
 );
 
--- Core Tables
-CREATE TABLE IF NOT EXISTS standup_core.channels (
-    channel_id serial PRIMARY KEY,
-    yt_channel_id text UNIQUE NOT NULL,
+-- 2) Create Core Table
+CREATE TABLE IF NOT EXISTS standup_core.core_channels (
+    channel_id text PRIMARY KEY,
     channel_name text NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now ()
 );
 
-CREATE TABLE IF NOT EXISTS standup_core.playlists (
-    playlist_id serial PRIMARY KEY,
-    yt_playlist_id text UNIQUE NOT NULL,
-    playlist_title text,
+CREATE TABLE IF NOT EXISTS standup_core.core_playlists (
+    playlist_id text PRIMARY KEY,
+    playlist_title text NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now ()
 );
 
-CREATE TABLE IF NOT EXISTS standup_core.videos (
-    video_id serial PRIMARY KEY,
-    yt_video_id text UNIQUE NOT NULL,
-    playlist_id int REFERENCES standup_core.playlists (playlist_id),
-    channel_id int REFERENCES standup_core.channels (channel_id),
+CREATE TABLE IF NOT EXISTS standup_core.core_videos (
+    video_id text PRIMARY KEY,
+    playlist_id text NOT NULL REFERENCES standup_core.core_playlists (playlist_id),
+    channel_id text NOT NULL REFERENCES standup_core.core_channels (channel_id),
     video_title text NOT NULL,
     duration int2 NOT NULL,
     upload_date DATE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now ()
 );
 
-CREATE TABLE IF NOT EXISTS standup_core.videos_meta (
-    video_id int REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
-    snapshot_date date NOT NULL DEFAULT CURRENT_DATE,
+CREATE TABLE IF NOT EXISTS standup_core.core_videos_meta (
+    video_id text REFERENCES standup_core.core_videos (video_id) ON DELETE CASCADE,
+    snapshot_date date NOT NULL,
     like_count int4 NOT NULL,
     view_count int4 NOT NULL,
     comment_count int4 NOT NULL,
-    UNIQUE (video_id, snapshot_date)
+    PRIMARY KEY (video_id, snapshot_date)
 );
 
-CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
-    video_id int REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
-    segment_id int4 NOT NULL,
+CREATE TABLE IF NOT EXISTS standup_core.core_transcript_segments (
+    video_id text REFERENCES standup_core.core_videos (video_id) ON DELETE CASCADE,
+    segment_id int2 NOT NULL,
     start_s float4 NOT NULL,
     end_s float4 NOT NULL,
     segment_text TEXT NOT NULL,
@@ -74,21 +70,21 @@ CREATE TABLE IF NOT EXISTS standup_core.transcript_segments (
 );
 
 
-CREATE TABLE IF NOT EXISTS standup_core.categories (
+CREATE TABLE IF NOT EXISTS standup_core.core_categories (
     category_id int2 PRIMARY KEY,
     main_category text UNIQUE NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS standup_core.subcategories (
+CREATE TABLE IF NOT EXISTS standup_core.core_subcategories (
     subcategory_id int2 PRIMARY KEY,
-    category_id int2 NOT NULL REFERENCES standup_core.categories (category_id) ON DELETE CASCADE,
+    category_id int2 NOT NULL REFERENCES standup_core.core_categories (category_id) ON DELETE CASCADE,
     subcategory text NOT NULL,
     UNIQUE (category_id, subcategory)
 );
 
 -- Seed lookup data for LLM categories and subcategories
 INSERT INTO
-    standup_core.categories (category_id, main_category)
+    standup_core.core_categories (category_id, main_category)
 VALUES
     (1, 'Advertising'),
     (2, 'Politics & Society'),
@@ -102,7 +98,7 @@ VALUES
     (10, 'Dark, Edgy & Absurd Humor') ON CONFLICT (category_id) DO NOTHING;
 
 INSERT INTO
-    standup_core.subcategories (subcategory_id, category_id, subcategory)
+    standup_core.core_subcategories (subcategory_id, category_id, subcategory)
 VALUES
     (1, 1, 'Upcoming shows & live events'),
     (2, 1, 'Streaming platforms & online services'),
@@ -155,28 +151,29 @@ VALUES
     (49, 10, 'Self-deprecating humor'),
     (50, 10, 'Surreal or absurd comedy') ON CONFLICT (subcategory_id) DO NOTHING;
 
-CREATE TABLE IF NOT EXISTS standup_core.sound_features (
-    video_id int4 REFERENCES standup_core.videos (video_id) ON DELETE CASCADE,
-    "sequence" int4,
-    points int4,
-    duration_seconds float4,
-    start_seconds float4,
-    end_seconds float4,
-    avg_confidence float4,
-    max_confidence float4,
+CREATE TABLE IF NOT EXISTS standup_core.core_sound_features (
+    video_id text REFERENCES standup_core.core_videos (video_id) ON DELETE CASCADE,
+    "sequence" int2,
+    points int2 NOT NULL,
+    duration_seconds float4 NOT NULL,
+    start_seconds float4 NOT NULL,
+    end_seconds float4 NOT NULL,
+    avg_confidence float4 NOT NULL,
+    max_confidence float4 NOT NULL,
     PRIMARY KEY (video_id, "sequence")
 );
 
-CREATE TABLE IF NOT EXISTS standup_core.chapters (
-    video_id int NOT NULL REFERENCES standup_core.videos (video_id),
-    start_segment_id int2 NOT NULL,
-    end_segment_id int2 NOT NULL,
-    subcategory_id int2 REFERENCES standup_core.subcategories (subcategory_id) ON DELETE RESTRICT,
-    UNIQUE (video_id, start_segment_id, end_segment_id),
-    FOREIGN KEY (video_id, start_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE,
-    FOREIGN KEY (video_id, end_segment_id) REFERENCES standup_core.transcript_segments (video_id, segment_id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS standup_core.core_chapters (
+    video_id text REFERENCES standup_core.core_videos (video_id),
+    start_segment_id int2,
+    end_segment_id int2,
+    subcategory_id int2 NOT NULL REFERENCES standup_core.core_subcategories (subcategory_id) ON DELETE RESTRICT,
+    PRIMARY KEY (video_id, start_segment_id, end_segment_id),
+    FOREIGN KEY (video_id, start_segment_id) REFERENCES standup_core.core_transcript_segments (video_id, segment_id) ON DELETE CASCADE,
+    FOREIGN KEY (video_id, end_segment_id) REFERENCES standup_core.core_transcript_segments (video_id, segment_id) ON DELETE CASCADE
 );
 
+-- 3) Create funcation
 CREATE OR REPLACE FUNCTION update_timestamp_on_meta_change()
 RETURNS TRIGGER AS $$
 BEGIN

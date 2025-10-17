@@ -1,7 +1,6 @@
 {{ config(
     materialized='table',
     indexes=[
-      {'columns': ['playlist_id'], 'unique': True},
       {'columns': ['playlist_title']}
     ],
     post_hook=[
@@ -12,6 +11,5 @@
 
 SELECT
     playlist_id,
-    yt_playlist_id,
     playlist_title
 FROM {{ ref('core_playlists') }}

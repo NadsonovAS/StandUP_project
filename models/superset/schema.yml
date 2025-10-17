@@ -1,0 +1,152 @@
+version: 2
+
+models:
+  - name: chapters_metrics
+    description: "Прослоечная витрина с метриками по главам видео и календарными измерениями"
+    columns:
+      - name: main_category
+        description: "Основная категория контента"
+        tests:
+          - not_null
+      - name: subcategory
+        description: "Подкатегория контента"
+        tests:
+          - not_null
+      - name: video_title
+        description: "Название видео"
+        tests:
+          - not_null
+      - name: channel_name
+        description: "Наименование канала"
+        tests:
+          - not_null
+      - name: playlist_title
+        description: "Наименование плейлиста"
+      - name: duration
+        description: "Длительность главы в секундах"
+      - name: laughter_percent
+        description: "Доля смеха в рамках главы (процент от длительности)"
+      - name: date
+        description: "Календарная дата"
+        tests:
+          - not_null
+      - name: year
+        description: "Год календарной даты"
+      - name: quarter
+        description: "Квартал календарной даты (1-4)"
+      - name: month
+        description: "Номер месяца"
+      - name: month_name
+        description: "Название месяца"
+      - name: week_of_year
+        description: "Номер недели в году"
+      - name: day_of_week
+        description: "Порядковый номер дня недели по ISO"
+      - name: day_name
+        description: "Название дня недели"
+      - name: is_weekend
+        description: "Флаг выходного дня"
+
+  - name: video_metrics
+    description: "Маркетинговая витрина итоговых метрик по видео с признаками классификации"
+    columns:
+      - name: channel_name
+        description: "Наименование канала"
+        tests:
+          - not_null
+      - name: playlist_title
+        description: "Наименование плейлиста"
+      - name: video_title
+        description: "Название видео"
+        tests:
+          - not_null
+      - name: subcategory
+        description: "Подкатегория контента"
+        tests:
+          - not_null
+      - name: main_category
+        description: "Основная категория контента"
+      - name: view_count
+        description: "Количество просмотров на момент последней фиксации"
+      - name: laughter_percent
+        description: "Доля продолжительности видео, в течение которой зафиксирован смех"
+      - name: like_count
+        description: "Количество лайков на момент последней фиксации"
+      - name: comment_count
+        description: "Количество комментариев на момент последней фиксации"
+      - name: duration
+        description: "Продолжительность видео в секундах"
+      - name: duration_hms
+        description: "Продолжительность видео в формате HH:MM:SS"
+      - name: date
+        description: "Дата загрузки видео"
+        tests:
+          - not_null
+      - name: year
+        description: "Год загрузки видео"
+      - name: quarter
+        description: "Квартал загрузки видео (1-4)"
+      - name: month
+        description: "Номер месяца загрузки"
+      - name: month_name
+        description: "Название месяца загрузки"
+      - name: week_of_year
+        description: "Номер недели загрузки"
+      - name: day_of_week
+        description: "Порядковый номер дня недели загрузки по ISO"
+      - name: day_name
+        description: "Название дня недели загрузки"
+      - name: is_weekend
+        description: "Флаг, указывающий на загрузку видео в выходной"
+
+  - name: video_daily_snapshot
+    description: "Витрина ежедневных изменений просмотров, лайков и комментариев по видео"
+    columns:
+      - name: video_title
+        description: "Название видео"
+        tests:
+          - not_null
+      - name: channel_name
+        description: "Наименование канала"
+        tests:
+          - not_null
+      - name: playlist_title
+        description: "Наименование плейлиста"
+      - name: prev_day_view
+        description: "Изменение просмотров относительно предыдущего дня"
+      - name: prev_day_like
+        description: "Изменение лайков относительно предыдущего дня"
+      - name: prev_day_comment
+        description: "Изменение количества комментариев относительно предыдущего дня"
+      - name: date_id
+        description: "Дата снимка в формате surrogate key YYYYMMDD"
+        tests:
+          - not_null
+      - name: date
+        description: "Календарная дата снимка"
+      - name: year
+        description: "Год календарной даты"
+      - name: quarter
+        description: "Квартал календарной даты (1-4)"
+      - name: month
+        description: "Номер месяца"
+      - name: month_name
+        description: "Название месяца"
+      - name: week_of_year
+        description: "Номер недели в году"
+      - name: day_of_week
+        description: "Порядковый номер дня недели по ISO"
+      - name: day_name
+        description: "Название дня недели"
+      - name: is_weekend
+        description: "Флаг выходного дня"
+
+  - name: dwh_statistics
+    description: "Сводный отчет с агрегированными счетчиками по витринам DWH"
+    columns:
+      - name: label
+        description: "Наименование показателя"
+        tests:
+          - not_null
+      - name: total
+        description: "Значение показателя"

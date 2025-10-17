@@ -59,7 +59,7 @@ class SoundClassifierClient:
         command = self._command_builder(audio_path, self._settings)
         completed_process = self._runner(command)
         payload = json.loads(completed_process.stdout)
-        return {str(key): float(value) for key, value in payload.items()}
+        return payload
 
     def _to_sorted_arrays(
         self, raw: Mapping[str, float] | None
@@ -85,7 +85,6 @@ class SoundClassifierClient:
         if times.size == 0:
             return []
 
-        # Cluster by time gaps using all timestamps — do NOT prefilter individual points by confidence.
         split_points = np.where(np.diff(times) > self._events_max_gap)[0] + 1
         cluster_starts = np.concatenate(([0], split_points))
         cluster_ends = np.concatenate((split_points, [times.size]))
@@ -103,7 +102,6 @@ class SoundClassifierClient:
             avg_confidence = float(cluster_conf.mean()) if cluster_conf.size else 0.0
             max_confidence = float(cluster_conf.max()) if cluster_conf.size else 0.0
 
-            # Apply the confidence threshold only to the cluster's average confidence.
             if (
                 duration >= self._events_min_duration
                 and avg_confidence >= self._events_avg_confidence_threshold
