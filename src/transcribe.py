@@ -27,15 +27,17 @@ class ParakeetTranscriber:
         return self._model
 
     @try_except_with_log("Starting audio transcription")
-    def transcribe_audio(self, audio_path: str) -> Dict[int, Dict[str, Any]]:
+    def transcribe_audio(self, audio_path: str) -> dict[str, dict[str, Any]]:
         model = self.load_model_if_needed()
-        result = model.transcribe(
-            audio_path,
-            chunk_duration=self._chunk_duration,
-            overlap_duration=self._overlap_duration,
-        )
-        core.clear_cache()
+        try:
+            result = model.transcribe(
+                audio_path,
+                chunk_duration=self._chunk_duration,
+                overlap_duration=self._overlap_duration,
+            )
+        finally:
+            core.clear_cache()
         return {
-            i: {"text": s.text, "start": round(s.start, 2), "end": round(s.end, 2)}
+            str(i): {"text": s.text, "start": round(s.start, 2), "end": round(s.end, 2)}
             for i, s in enumerate(result.sentences)
         }

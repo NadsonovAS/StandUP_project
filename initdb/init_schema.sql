@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS standup_core.core_sound_features (
 );
 
 CREATE TABLE IF NOT EXISTS standup_core.core_chapters (
-    video_id text REFERENCES standup_core.core_videos (video_id),
+    video_id text NOT NULL REFERENCES standup_core.core_videos (video_id),
     start_segment_id int2,
     end_segment_id int2,
     subcategory_id int2 NOT NULL REFERENCES standup_core.core_subcategories (subcategory_id) ON DELETE RESTRICT,

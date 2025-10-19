@@ -78,11 +78,13 @@ models:
       - name: playlist_id
         description: "Внешний ключ на core_playlists"
         tests:
+          - not_null
           - relationships:
               arguments:
                 to: ref('core_playlists')
                 field: playlist_id
         constraints:
+          - type: not_null
           - type: foreign_key
             to: ref('core_playlists')
             to_columns: [playlist_id]
@@ -126,10 +128,22 @@ models:
           - type: not_null
       - name: view_count
         description: "Количество просмотров на дату снимка"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
       - name: like_count
         description: "Количество лайков на дату снимка"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
       - name: comment_count
         description: "Количество комментариев на дату снимка"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
   - name: core_transcript_segments
     description: "Сегменты транскрипции, нормализованные для Core-слоя"
     tests:
@@ -244,13 +258,21 @@ models:
     description: "Главы видео с привязкой к подкатегориям контента"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, start_segment_id, subcategory_id]
+          combination_of_columns: [video_id, start_segment_id, end_segment_id]
       - dbt_utils.equal_rowcount:
           arguments:
             compare_model: ref('stg_chapters')
     constraints:
       - type: primary_key
-        columns: [video_id, start_segment_id, subcategory_id]
+        columns: [video_id, start_segment_id, end_segment_id]
+      - type: foreign_key
+        columns: [video_id, start_segment_id]
+        to: ref('core_transcript_segments')
+        to_columns: [video_id, segment_id]
+      - type: foreign_key
+        columns: [video_id, end_segment_id]
+        to: ref('core_transcript_segments')
+        to_columns: [video_id, segment_id]
     columns:
       - name: video_id
         description: "Внешний ключ на core_videos"
@@ -288,9 +310,6 @@ models:
                 field: segment_id
         constraints:
           - type: not_null
-          - type: foreign_key
-            to: ref('core_transcript_segments')
-            to_columns: [segment_id]
       - name: end_segment_id
         description: "Идентификатор сегмента окончания главы"
         tests:
@@ -301,6 +320,52 @@ models:
                 field: segment_id
         constraints:
           - type: not_null
+  - name: core_categories
+    description: "Справочник основных категорий контента"
+    columns:
+      - name: category_id
+        description: "Идентификатор категории, первичный ключ"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: main_category
+        description: "Название основной категории контента"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: not_null
+  - name: core_subcategories
+    description: "Справочник подкатегорий контента с привязкой к категориям"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [category_id, subcategory]
+    columns:
+      - name: subcategory_id
+        description: "Идентификатор подкатегории, первичный ключ"
+        tests:
+          - not_null
+          - unique
+        constraints:
+          - type: primary_key
+      - name: category_id
+        description: "Ссылка на core_categories"
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: source('standup_core', 'core_categories')
+                field: category_id
+        constraints:
+          - type: not_null
           - type: foreign_key
-            to: ref('core_transcript_segments')
-            to_columns: [segment_id]
+            to: source('standup_core', 'core_categories')
+            to_columns: [category_id]
+      - name: subcategory
+        description: "Название подкатегории контента"
+        tests:
+          - not_null
+        constraints:
+          - type: not_null
