@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List
 
@@ -8,6 +9,38 @@ from minio.error import S3Error
 from config import Settings, get_settings
 from models import ProcessVideo
 from utils import try_except_with_log
+
+
+class _YoutubeDLLogger:
+    """Suppress noisy yt-dlp messages for unavailable videos."""
+
+    _IGNORED_TOKENS = (
+        "video unavailable. this video is private",
+        "this video is not available",
+    )
+
+    def _should_suppress(self, message: str) -> bool:
+        normalized = message.lower()
+        return any(token in normalized for token in self._IGNORED_TOKENS)
+
+    def debug(self, msg: str) -> None:
+        self._log(logging.DEBUG, msg)
+
+    def info(self, msg: str) -> None:
+        self._log(logging.INFO, msg)
+
+    def warning(self, msg: str) -> None:
+        self._log(logging.WARNING, msg)
+
+    def error(self, msg: str) -> None:
+        self._log(logging.ERROR, msg)
+
+    def _log(self, level: int, msg: str) -> None:
+        if not isinstance(msg, str):
+            msg = str(msg)
+        if self._should_suppress(msg):
+            return
+        logging.log(level, msg)
 
 
 def build_audio_artifacts(
@@ -31,11 +64,13 @@ class YoutubeDownloader:
     ) -> None:
         self._settings = settings or get_settings()
         self._ydl_factory = ydl_factory
+        self._logger = _YoutubeDLLogger()
 
     def _with_client(
         self, options: dict, callback: Callable[[yt_dlp.YoutubeDL], Any]
     ) -> Any:
-        with self._ydl_factory(options) as client:
+        params = {**options, "logger": self._logger, "quiet": True}
+        with self._ydl_factory(params) as client:
             return callback(client)
 
     def extract_video_info(self, video_url: str) -> Dict[str, int]:

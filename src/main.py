@@ -1,6 +1,8 @@
 import argparse
 import logging
+import re
 import subprocess
+import sys
 
 # import time
 from datetime import date
@@ -34,17 +36,17 @@ def update_field_if_missing(
     allow_none: bool = False,
     commit: Callable[[], None],
     force_update: bool = False,
-) -> None:
+) -> bool:
     """Populate a missing column by generating and persisting the value."""
     if getattr(video_row, column_name) is not None and not force_update:
-        return
+        return False
 
     if video_row.video_id is None:
         raise ValueError("Cannot update database without a video_id")
 
     new_value = value_generator_func()
     if new_value is None and not allow_none:
-        return
+        return False
 
     setattr(video_row, column_name, new_value)
     repository.update_video_field(
@@ -54,6 +56,7 @@ def update_field_if_missing(
         json_type=json_type,
     )
     commit()
+    return True
 
 
 def update_video_metadata(
@@ -61,35 +64,33 @@ def update_video_metadata(
     repository: ProcessVideoRepository,
     downloader: YoutubeDownloader,
     commit: Callable[[], None],
-) -> None:
+) -> bool:
+    updated = False
     if not video_row.video_url:
-        return
+        return updated
     if video_row.video_meta_json is None:
-        logging.info(
-            "Starting video metadata download",
-        )
-        update_field_if_missing(
+        if update_field_if_missing(
             video_row,
             repository,
             "video_meta_json",
             lambda: downloader.extract_video_info(video_row.video_url),
             commit=commit,
-        )
+        ):
+            updated = True
     elif (
         not video_row.meta_updated_at or video_row.meta_updated_at.date() < date.today()
     ):
-        logging.info(
-            "Starting video metadata update",
-        )
-        update_field_if_missing(
+        if update_field_if_missing(
             video_row,
             repository,
             "video_meta_json",
             lambda: downloader.extract_video_info(video_row.video_url),
             commit=commit,
             force_update=True,
-        )
+        ):
+            updated = True
         # time.sleep(1)
+    return updated
 
 
 def process_audio_and_transcription(
@@ -100,16 +101,17 @@ def process_audio_and_transcription(
     sound_classifier: SoundClassifierClient,
     storage_client: Minio,
     commit: Callable[[], None],
-) -> None:
+) -> bool:
+    updated = False
     if not video_row.video_url:
-        return
+        return updated
 
     needs_transcription = video_row.transcribe_json is None
     needs_sound_classifier = video_row.sound_classifier_json is None
     needs_laugh_events = video_row.laugh_events_json is None
 
     if not (needs_transcription or needs_sound_classifier or needs_laugh_events):
-        return
+        return updated
 
     audio_path_str: str | None = None
     if needs_transcription or needs_sound_classifier:
@@ -120,25 +122,27 @@ def process_audio_and_transcription(
         video_row.audio_path = audio_path_str
 
     if needs_transcription and audio_path_str:
-        update_field_if_missing(
+        if update_field_if_missing(
             video_row,
             repository,
             "transcribe_json",
             lambda: transcriber.transcribe_audio(audio_path_str),
             commit=commit,
-        )
+        ):
+            updated = True
 
     if needs_sound_classifier and audio_path_str:
-        update_field_if_missing(
+        if update_field_if_missing(
             video_row,
             repository,
             "sound_classifier_json",
             lambda: sound_classifier.classify_audio(audio_path_str),
             commit=commit,
-        )
+        ):
+            updated = True
 
     if needs_laugh_events:
-        update_field_if_missing(
+        if update_field_if_missing(
             video_row,
             repository,
             "laugh_events_json",
@@ -146,7 +150,9 @@ def process_audio_and_transcription(
                 video_row.sound_classifier_json
             ),
             commit=commit,
-        )
+        ):
+            updated = True
+    return updated
 
 
 def run_llm_tasks(
@@ -154,29 +160,31 @@ def run_llm_tasks(
     repository: ProcessVideoRepository,
     llm_client: GeminiClient,
     commit: Callable[[], None],
-) -> None:
+) -> bool:
+    updated = False
     if not video_row.transcribe_json:
-        return
+        return updated
 
     needs_llm = (
         video_row.llm_chapter_json is None or video_row.llm_classifier_json is None
     )
     if not needs_llm:
-        return
+        return updated
 
-    update_field_if_missing(
+    if update_field_if_missing(
         video_row,
         repository,
         "llm_chapter_json",
         lambda: request_llm_summary(video_row.transcribe_json, client=llm_client),
         allow_none=False,
         commit=commit,
-    )
+    ):
+        updated = True
 
     if not video_row.llm_chapter_json:
-        return
+        return updated
 
-    update_field_if_missing(
+    if update_field_if_missing(
         video_row,
         repository,
         "llm_classifier_json",
@@ -185,14 +193,17 @@ def run_llm_tasks(
         ),
         allow_none=False,
         commit=commit,
-    )
+    ):
+        updated = True
+    return updated
 
 
 def update_status(
     video_row: ProcessVideo,
     repository: ProcessVideoRepository,
     commit: Callable[[], None],
-) -> None:
+) -> bool:
+    updated = False
     completed = all(
         [
             video_row.video_meta_json,
@@ -203,7 +214,7 @@ def update_status(
             video_row.laugh_events_json,
         ]
     )
-    if completed:
+    if completed and video_row.process_status != "finished":
         video_row.process_status = "finished"
         repository.update_video_field(
             video_row.video_id,
@@ -212,6 +223,8 @@ def update_status(
             json_type=False,
         )
         commit()
+        updated = True
+    return updated
 
 
 def run_dbt_pipeline() -> None:
@@ -240,6 +253,40 @@ def run_dbt_pipeline() -> None:
 
     logging.info("DBT pipeline completed successfully")
 
+    test_command = ("uv", "run", "dbt", "test")
+
+    try:
+        test_result = subprocess.run(
+            test_command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:
+        logging.exception("Unexpected error when running dbt tests")
+        raise RuntimeError("Failed to invoke dbt test") from exc
+
+    if test_result.returncode == 0:
+        logging.info("DBT tests completed successfully")
+        return
+
+    # Фильтрация и логирование только блоков с ошибками
+    if test_result.stdout:
+        pattern = re.compile(r"(Failure in test.*?(?:\n\s*\n|$))", re.DOTALL)
+        error_blocks = pattern.findall(test_result.stdout)
+        if error_blocks:
+            for block in error_blocks:
+                # Логируем каждую строку блока с уровнем ERROR
+                for line in block.strip().splitlines():
+                    logging.error(line)
+        else:
+            logging.error("No failure blocks found in dbt test output")
+
+    if test_result.stderr:
+        logging.error("dbt test stderr:\n%s", test_result.stderr)
+
+    sys.exit(1)
+
 
 def process_single_video(
     video_row: ProcessVideo,
@@ -262,11 +309,16 @@ def process_single_video(
         if not video_from_db:
             return False
 
-        logging.info("=" * 42)
-        logging.info("Starting processing for - %s", video_row.video_title)
+        if video_from_db.process_status != "finished":
+            logging.info("<<" + "-" * 40)
+            logging.info("Starting processing for - %s", video_from_db.video_title)
 
-        update_video_metadata(video_from_db, repository, downloader, commit)
-        process_audio_and_transcription(
+        any_updates = False
+
+        if update_video_metadata(video_from_db, repository, downloader, commit):
+            any_updates = True
+
+        if process_audio_and_transcription(
             video_from_db,
             repository,
             downloader,
@@ -274,15 +326,22 @@ def process_single_video(
             sound_classifier_client,
             storage_client,
             commit,
-        )
-        run_llm_tasks(video_from_db, repository, llm_client, commit)
-        update_status(video_from_db, repository, commit)
+        ):
+            any_updates = True
+
+        if run_llm_tasks(video_from_db, repository, llm_client, commit):
+            any_updates = True
+
+        if update_status(video_from_db, repository, commit):
+            any_updates = True
+
         remove_audio_cache(settings=settings)
 
-        return True
+        if any_updates:
+            return True
 
     except (DownloadError, ExtractorError) as exc:
-        logging.warning("Skipping unavailable video %s: %s", video_row.video_id, exc)
+        logging.debug("Skipping unavailable video %s: %s", video_row.video_id, exc)
         return False
     except Exception as exc:  # noqa: BLE001
         logging.error("Error processing video %s: %s", video_row.video_id, exc)
@@ -302,7 +361,9 @@ def process_playlist(
     commit: Callable[[], None],
     settings: Settings,
 ) -> None:
+    logging.info("=" * 42)
     playlist_info = downloader.extract_playlist_info(youtube_url)
+    logging.info("Starting playlist processing - %s", playlist_info[0].playlist_title)
 
     repository.create_videos(playlist_info)
     commit()
@@ -324,6 +385,10 @@ def process_playlist(
             processed_videos += 1
 
     if processed_videos:
+        logging.info(
+            "Processed %s video(s) with changes; running dbt pipeline",
+            processed_videos,
+        )
         run_dbt_pipeline()
 
 
