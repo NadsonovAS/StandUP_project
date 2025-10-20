@@ -12,11 +12,12 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
 - Transcribes shows locally with the Apple Silicon–optimised `parakeet-mlx` model and detects laughter via a Swift `SoundAnalysis` binary.
 - Summarises chapters and classifies topics through the Gemini CLI, persisting structured JSON for downstream reporting.
 - Ships a dbt project that populates core analytics tables via `uv run dbt run` after each ingestion step.
+- Bundles an Apache Superset container preconfigured to the analytics schema for dashboarding at `http://localhost:8088`.
 
 ## Prerequisites
 - **Hardware/OS:** Apple Silicon running macOS 14+ (required for `SoundAnalysis` and `parakeet-mlx`).
 - **Python:** [`uv`](https://github.com/astral-sh/uv) with Python 3.13 toolchain installed locally.
-- **Containers:** Docker Desktop (used for PostgreSQL and MinIO).
+- **Containers:** OrbStack (used for PostgreSQL/MinIO/Superset).
 - **CLI tooling:**
   - [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) (pulled automatically via `uv sync`).
   - [`ffmpeg`](https://ffmpeg.org/) on the host (`brew install ffmpeg`).
@@ -52,22 +53,29 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
    # DATA_DIR=./data
    # MINIO_AUDIO_BUCKET=standup-project
    # MINIO_AUDIO_PATH=data/audio
+
+   # Superset (optional)
+   SUPERSET_ADMIN_USER=admin
+   SUPERSET_ADMIN_PASSWORD=admin
+   SUPERSET_ADMIN_EMAIL=admin@example.com
+   SUPERSET_SECRET_KEY=standup-secret-key
    ```
 4. **Start infrastructure**
    ```bash
    docker-compose up -d
    ```
-   This launches PostgreSQL, MinIO, and a bootstrap job that creates the `standup-project` bucket with a public policy. Stop services with `docker-compose down` when finished.
+   This launches PostgreSQL, MinIO, Superset, and a bootstrap job that creates the `standup-project` bucket with a public policy. Stop services with `docker-compose down` when finished.
 
 5. **Build the laughter detector binary**
    ```bash
    swiftc src/sound_classifier.swift -o src/sound_classifier
    ```
+   Re-run this after any changes to `src/sound_classifier.swift`.
 
 ## Running the Ingestion Pipeline
 Run the end-to-end processor with any YouTube playlist URL containing a `list=` parameter:
 ```bash
-uv run src/main.py "https://www.youtube.com/watch?v=MaVc3dqiEI4&list=PLcQngyvNgfmLi9eyV9reNMqu-pbdKErKr"
+uv run src/main.py --new_playlist "https://www.youtube.com/watch?v=lgP8ZjQeAAY&list=PLcQngyvNgfmKSmmu9lJNoLo6K2MVfIS40"
 ```
 The pipeline will:
 - Upsert playlist entries into `standup_raw.process_video`.
@@ -84,9 +92,16 @@ uv run dbt build
 Key models include:
 - `staging/stg_process_video.sql`: exposes raw JSON fields with typed columns.
 - `core/*`: normalises transcripts, chapters, laughter scores, and classifications.
+- `dds/dim/dim_category.sql`: surfaces comedian and show categories for slicing downstream facts.
+- `dds/fact/fact_video_metrics.sql`: combines engagement metrics with laughter coverage for dashboards.
 
 ### Orchestrating dbt from Python
 `main.py` shells out to `uv run dbt run` after each successfully processed video, so analytics tables stay in sync with new raw data. Trigger the same command manually when needed:
+
+## Visualising in Superset
+- Visit `http://localhost:8088` (default credentials `admin` / `admin` unless overridden in `.env`).
+- Explore datasets under the `standup_dds` schema, starting with `fact_video_metrics` for laughter and engagement trends.
+- Build or import dashboards; Superset runs alongside PostgreSQL in Docker Compose so no extra connection steps are required.
 
 
 ## Repository Layout
@@ -110,9 +125,6 @@ StandUP_project
 ├── seeds/                   # dbt seed data for reference tables
 ├── snapshots/               # dbt snapshots for slowly changing data
 ├── dbt_project.yml          # dbt project definition
-├── dbt_packages/            # Third-party dbt packages installed via dbt deps (ignored)
-├── dbt_internal_packages/   # Auto-generated dbt dependencies (ignored)
-├── target/                  # Compiled dbt artifacts (ignored)
 ├── docker/
 │   └── superset/            # Superset deployment assets
 ├── initdb/
@@ -120,12 +132,7 @@ StandUP_project
 ├── docker-compose.yml       # Local PostgreSQL, MinIO, Superset stack
 ├── pyproject.toml           # Python project configuration
 ├── .env                     # MinIO/PostgreSQL Configuration (ignored)
-├── uv.lock                  # Locked dependency manifest for uv (ignored)
 ├── data/                    # Local audio cache (ignored)
-├── logs/                    # Execution logs and dbt state (ignored)
-├── AGENTS.md                # Agent orchestration notes
-├── standup_project.drawio   # Architecture diagram source (ignored)
-├── image.png                # Pipeline overview illustration
 └── README.md
 ```
 
