@@ -3,20 +3,21 @@
     unique_key='video_id'
 ) }}
 
-select 
+select
     stg_v.video_id,
     stg_v.channel_id,
     stg_v.playlist_id,
-    video_title,
-    duration,
-    upload_date,
+    stg_v.video_title,
+    stg_v.duration,
+    stg_v.upload_date,
     current_timestamp as created_at
-from {{ ref("stg_videos_base") }} stg_v
-where is_valid is true and
-{% if is_incremental() %}
-    not exists (
-    select 1
-    from {{ this }} existing
-    where existing.video_id = stg_v.video_id
-)
-{% endif %}
+from {{ ref("stg_videos_base") }} as stg_v
+where
+    stg_v.is_valid is true and
+    {% if is_incremental() %}
+        not exists (
+            select 1
+            from {{ this }} as existing
+            where existing.video_id = stg_v.video_id
+        )
+    {% endif %}

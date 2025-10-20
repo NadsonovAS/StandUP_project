@@ -3,7 +3,7 @@
 ) }}
 
 WITH process_video AS (
-    SELECT 
+    SELECT
         video_id,
         llm_chapter_json
     FROM {{ source('standup_raw', 'process_video') }}
@@ -12,28 +12,28 @@ WITH process_video AS (
 
 parsed_chapters AS (
     SELECT
-        video_id::TEXT as video_id,
-        ch.id as start_segment_id,
-        ch.end_id as end_segment_id,
-        ch.theme as chapter_theme,
-        ch.summary as chapter_summary
+        video_id::TEXT AS video_id,
+        ch.id AS start_segment_id,
+        ch.end_id AS end_segment_id,
+        ch.theme AS chapter_theme,
+        ch.summary AS chapter_summary
     FROM process_video
     CROSS JOIN LATERAL jsonb_to_recordset(llm_chapter_json -> 'chapters')
-        as ch(id int, end_id int, theme text, summary text)
+        AS ch (id INT, end_id INT, theme TEXT, summary TEXT)
 )
 
-SELECT 
+SELECT
     video_id,
     start_segment_id,
     end_segment_id,
-    TRIM(chapter_theme) as chapter_theme,
-    TRIM(chapter_summary) as chapter_summary,
-    
+    trim(chapter_theme) AS chapter_theme,
+    trim(chapter_summary) AS chapter_summary,
+
     -- Validate
     CASE
-        WHEN COALESCE(chapter_theme, chapter_summary) IS NULL THEN FALSE
+        WHEN coalesce(chapter_theme, chapter_summary) IS NULL THEN FALSE
         WHEN end_segment_id < start_segment_id THEN FALSE
         ELSE TRUE
-    END as is_valid
-    
+    END AS is_valid
+
 FROM parsed_chapters

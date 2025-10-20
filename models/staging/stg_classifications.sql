@@ -3,7 +3,7 @@
 ) }}
 
 WITH process_video AS (
-    SELECT 
+    SELECT
         video_id,
         llm_classifier_json
     FROM {{ source('standup_raw', 'process_video') }}
@@ -12,27 +12,25 @@ WITH process_video AS (
 
 parsed_chapters AS (
     SELECT
-        video_id::TEXT as video_id,
-        cl.id as start_segment_id,
-        cl.reason as reason,
-        cl.subcategory as subcategory,
-        cl.main_category as main_category
+        video_id::TEXT AS video_id,
+        cl.id AS start_segment_id,
+        cl.reason,
+        cl.subcategory,
+        cl.main_category
     FROM process_video
-    CROSS JOIN LATERAL jsonb_to_recordset(llm_classifier_json -> 'classifications')
-        as cl(id int, reason text, subcategory text, main_category text)
+    CROSS JOIN
+        LATERAL jsonb_to_recordset(llm_classifier_json -> 'classifications')
+            AS cl (id INT, reason TEXT, subcategory TEXT, main_category TEXT)
 )
 
-SELECT 
+SELECT
     video_id,
     start_segment_id,
-    TRIM(reason) as reason,
-    TRIM(subcategory) as subcategory,
-    TRIM(main_category) as main_category,
-    
+    trim(reason) AS reason,
+    trim(subcategory) AS subcategory,
+    trim(main_category) AS main_category,
+
     -- Validate
-    CASE
-        WHEN COALESCE(reason, subcategory, main_category) IS NULL THEN FALSE
-        ELSE TRUE
-    END as is_valid
-    
+    NOT coalesce(coalesce(reason, subcategory, main_category) IS NULL, FALSE) AS is_valid
+
 FROM parsed_chapters

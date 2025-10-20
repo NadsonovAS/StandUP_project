@@ -3,7 +3,7 @@
 ) }}
 
 WITH process_video AS (
-    SELECT 
+    SELECT
         video_id,
         channel_id,
         channel_name,
@@ -19,33 +19,33 @@ WITH process_video AS (
 
 SELECT
     -- Youtube ID
-    video_id::TEXT as video_id,
-    channel_id::TEXT as channel_id,
-    playlist_id::TEXT as playlist_id,
-    
+    video_id::TEXT AS video_id,
+    channel_id::TEXT AS channel_id,
+    playlist_id::TEXT AS playlist_id,
+
     -- Name TEXT clean
-    TRIM(video_title)::TEXT as video_title,
-    TRIM(channel_name)::TEXT as channel_name,
-    TRIM(playlist_title)::TEXT as playlist_title,
-    
+    TRIM(video_title)::TEXT AS video_title,
+    TRIM(channel_name)::TEXT AS channel_name,
+    TRIM(playlist_title)::TEXT AS playlist_title,
+
     -- JSON extract with type
-    (video_meta_json ->> 'duration')::INT as duration,
-    (video_meta_json ->> 'like_count')::INT as like_count,
-    (video_meta_json ->> 'view_count')::INT as view_count,
-    (video_meta_json ->> 'comment_count')::INT as comment_count,
-    (video_meta_json ->> 'upload_date')::DATE as upload_date,
-    
+    (video_meta_json ->> 'duration')::INT AS duration,
+    (video_meta_json ->> 'like_count')::INT AS like_count,
+    (video_meta_json ->> 'view_count')::INT AS view_count,
+    (video_meta_json ->> 'comment_count')::INT AS comment_count,
+    (video_meta_json ->> 'upload_date')::DATE AS upload_date,
+
     -- Process meta field
     process_status::TEXT,
     meta_updated_at::DATE,
-    
+
     -- Validate
-    CASE 
+    CASE
         WHEN video_id IS NULL OR video_id = '' THEN FALSE
         WHEN channel_id IS NULL OR channel_id = '' THEN FALSE
         WHEN playlist_id IS NULL OR playlist_id = '' THEN FALSE
-        WHEN process_status != 'finished' or process_status IS NULL THEN FALSE
+        WHEN process_status != 'finished' OR process_status IS NULL THEN FALSE
         ELSE TRUE
-    END as is_valid
-    
+    END AS is_valid
+
 FROM process_video

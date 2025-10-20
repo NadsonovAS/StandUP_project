@@ -15,52 +15,60 @@
 ) }}
 
 with chapters as (
+    select
+        ch.video_id,
+        ch.subcategory_id,
+        sub.category_id,
+        tr1.start_s,
+        tr2.end_s,
+        round((tr2.end_s - tr1.start_s)::numeric, 2) as duration
+    from
+        {{ ref("core_chapters") }} as ch
+        join {{ source('standup_core', 'core_subcategories') }} as sub
+        on
+            ch.subcategory_id = sub.subcategory_id
+        join {{ ref("core_transcript_segments") }} as tr1
+        on
+            ch.video_id = tr1.video_id
+            and ch.start_segment_id = tr1.segment_id
+        join {{ ref("core_transcript_segments") }} as tr2 on
+        ch.video_id = tr2.video_id
+        and ch.end_segment_id = tr2.segment_id
+)
+
 select
-	ch.video_id,
-	ch.subcategory_id,
-	sub.category_id,
-	tr1.start_s,
-	tr2.end_s,
-	round((tr2.end_s - tr1.start_s)::numeric, 2) as duration
-from
-		{{ref("core_chapters")}} ch
-join {{source('standup_core', 'core_subcategories')}} sub on
-		sub.subcategory_id = ch.subcategory_id
-join {{ref("core_transcript_segments")}} tr1 on
-		tr1.video_id = ch.video_id
-	and tr1.segment_id = ch.start_segment_id
-join {{ref("core_transcript_segments")}} tr2 on
-		tr2.video_id = ch.video_id
-	and tr2.segment_id = ch.end_segment_id)
-select
-	ch.video_id,
+    ch.video_id,
     dd.date_id,
     v.channel_id,
     v.playlist_id,
-	ch.subcategory_id,
-	ch.category_id,
-	ch.start_s,
-	ch.end_s,
-	ch.duration,
-	COALESCE(round((sum(sf.duration_seconds) / ch.duration * 100)::numeric, 1), 0) as laughter_percent
+    ch.subcategory_id,
+    ch.category_id,
+    ch.start_s,
+    ch.end_s,
+    ch.duration,
+    coalesce(
+        round((sum(sf.duration_seconds) / ch.duration * 100)::numeric, 1), 0
+    ) as laughter_percent
 from
-	chapters ch
-left join {{ref("core_sound_features")}} sf on
-	sf.video_id = ch.video_id
-	and sf.start_seconds between ch.start_s and ch.end_s
-join {{ref("core_videos")}} v on 
-    v.video_id = ch.video_id
-join {{ref("dim_date")}} dd on dd.date = v.upload_date
+    chapters as ch
+left join {{ ref("core_sound_features") }} as sf
+    on
+        ch.video_id = sf.video_id
+        and sf.start_seconds between ch.start_s and ch.end_s
+inner join {{ ref("core_videos") }} as v
+    on
+        ch.video_id = v.video_id
+inner join {{ ref("dim_date") }} as dd on v.upload_date = dd.date
 group by
-	ch.video_id,
+    ch.video_id,
     dd.date_id,
     v.channel_id,
     v.playlist_id,
-	ch.subcategory_id,
-	ch.category_id,
-	ch.start_s,
-	ch.end_s,
-	ch.duration
+    ch.subcategory_id,
+    ch.category_id,
+    ch.start_s,
+    ch.end_s,
+    ch.duration
 order by
-	ch.video_id,
-	ch.start_s
+    ch.video_id,
+    ch.start_s
