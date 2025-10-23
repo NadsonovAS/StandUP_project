@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 
 from mlx import core
 from parakeet_mlx import from_pretrained
