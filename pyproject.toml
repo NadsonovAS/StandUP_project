@@ -1,11 +1,11 @@
 [project]
 name = "standup-project"
 version = "0.1.0"
-description = "Pipeline выгрузки аудио из плейстов youtube с последующей транскрибацией, получением списка тем с временными метками, анализ аудио на предмет смеха с получением временных меток."
+description = "A pipeline for extracting audio from YouTube playlists, transcribing it, generating topic lists with timestamps, and analyzing the audio for laughter events with their time markers."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
-    "dbt-core>=1.10.11",
+    "dbt-core>=1.10.13",
     "dbt-postgres>=1.9.1",
     "minio>=7.2.16",
     "numba>=0.62",

@@ -1,57 +1,74 @@
 version: 2
 models:
   - name: core_channels
-    description: "Справочник YouTube каналов Core-слоя"
+    config:
+      contract:
+        enforced: true
+    description: "Core layer YouTube channel dimension"
     columns:
       - name: channel_id
-        description: "Натуральный идентификатор канала (YouTube id), используемый как первичный ключ"
+        data_type: text
+        description: "Natural channel identifier (YouTube id) used as the primary key"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: channel_name
-        description: "Название канала"
+        data_type: text
+        description: "Channel name"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: created_at
-        description: "Метка загрузки записи в DWH"
+        data_type: TIMESTAMPTZ
+        description: "DWH load timestamp"
         tests:
           - not_null
   - name: core_playlists
-    description: "Справочник YouTube плейлистов Core-слоя"
+    config:
+      contract:
+        enforced: true
+    description: "Core layer YouTube playlist dimension"
     columns:
       - name: playlist_id
-        description: "Натуральный идентификатор плейлиста (YouTube id), используемый как первичный ключ"
+        data_type: text
+        description: "Natural playlist identifier (YouTube id) used as the primary key"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: playlist_title
-        description: "Название плейлиста"
+        data_type: text
+        description: "Playlist title"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: created_at
-        description: "Метка загрузки записи в DWH"
+        data_type: TIMESTAMPTZ
+        description: "DWH load timestamp"
         tests:
           - not_null
   - name: core_videos
-    description: "Таблица видеороликов с основными атрибутами"
+    config:
+      contract:
+        enforced: true
+    description: "Video table with primary attributes"
     columns:
       - name: video_id
-        description: "Натуральный идентификатор видео (YouTube id), используемый как первичный ключ"
+        data_type: text
+        description: "Natural video identifier (YouTube id) used as the primary key"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: channel_id
-        description: "Внешний ключ на core_channels"
+        data_type: text
+        description: "Foreign key to core_channels"
         tests:
           - not_null
           - relationships:
@@ -64,19 +81,22 @@ models:
             to: ref('core_channels')
             to_columns: [channel_id]
       - name: video_title
-        description: "Название видео"
+        data_type: text
+        description: "Video title"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: duration
-        description: "Продолжительность видео в секундах"
+        data_type: smallint
+        description: "Video duration in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: playlist_id
-        description: "Внешний ключ на core_playlists"
+        data_type: text
+        description: "Foreign key to core_playlists"
         tests:
           - not_null
           - relationships:
@@ -89,17 +109,22 @@ models:
             to: ref('core_playlists')
             to_columns: [playlist_id]
       - name: upload_date
-        description: "Дата публикации видео на YouTube"
+        data_type: date
+        description: "YouTube publication date"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: created_at
-        description: "Метка загрузки записи в DWH"
+        data_type: TIMESTAMPTZ
+        description: "DWH load timestamp"
         tests:
           - not_null
   - name: core_videos_meta
-    description: "Ежедневные снимки метрик YouTube по каждому видео"
+    config:
+      contract:
+        enforced: true
+    description: "Daily snapshots of YouTube metrics per video"
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [video_id, snapshot_date]
@@ -108,7 +133,8 @@ models:
         columns: [video_id, snapshot_date]
     columns:
       - name: video_id
-        description: "Внешний ключ на core_videos"
+        data_type: text
+        description: "Foreign key to core_videos"
         tests:
           - not_null
           - relationships:
@@ -121,31 +147,38 @@ models:
             to: ref('core_videos')
             to_columns: [video_id]
       - name: snapshot_date
-        description: "Дата фиксации метрик"
+        data_type: date
+        description: "Metric snapshot date"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: view_count
-        description: "Количество просмотров на дату снимка"
+        data_type: int
+        description: "View count on the snapshot date"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: like_count
-        description: "Количество лайков на дату снимка"
+        data_type: int
+        description: "Like count on the snapshot date"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: comment_count
-        description: "Количество комментариев на дату снимка"
+        data_type: int
+        description: "Comment count on the snapshot date"
         tests:
           - not_null
         constraints:
           - type: not_null
   - name: core_transcript_segments
-    description: "Сегменты транскрипции, нормализованные для Core-слоя"
+    config:
+      contract:
+        enforced: true
+    description: "Transcription segments normalized for the Core layer"
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [video_id, segment_id]
@@ -154,7 +187,8 @@ models:
         columns: [video_id, segment_id]
     columns:
       - name: video_id
-        description: "Внешний ключ на core_videos"
+        data_type: text
+        description: "Foreign key to core_videos"
         tests:
           - not_null
           - relationships:
@@ -167,31 +201,38 @@ models:
             to: ref('core_videos')
             to_columns: [video_id]
       - name: segment_id
-        description: "Порядковый номер сегмента транскрипции внутри видео"
+        data_type: smallint
+        description: "Transcript segment index within the video"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: start_s
-        description: "Момент начала сегмента в секундах"
+        data_type: float
+        description: "Segment start in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: end_s
-        description: "Момент окончания сегмента в секундах"
+        data_type: float
+        description: "Segment end in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: segment_text
-        description: "Текст транскрипции сегмента"
+        data_type: text
+        description: "Segment transcription text"
         tests:
           - not_null
         constraints:
           - type: not_null
   - name: core_sound_features
-    description: "Детектированные эпизоды смеха по каждому видео"
+    config:
+      contract:
+        enforced: true
+    description: "Detected laughter episodes per video"
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [video_id, sequence]
@@ -200,7 +241,8 @@ models:
         columns: [video_id, sequence]
     columns:
       - name: video_id
-        description: "Внешний ключ на core_videos"
+        data_type: text
+        description: "Foreign key to core_videos"
         tests:
           - not_null
           - relationships:
@@ -213,49 +255,59 @@ models:
             to: ref('core_videos')
             to_columns: [video_id]
       - name: sequence
-        description: "Порядковый номер эпизода смеха в рамках видео"
+        data_type: smallint
+        description: "Laughter episode sequence within the video"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: points
-        description: "Количество точек детектора, сформировавших эпизод"
+        data_type: smallint
+        description: "Number of detector points forming the episode"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: start_seconds
-        description: "Начало эпизода смеха в секундах"
+        data_type: float
+        description: "Laughter episode start in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: end_seconds
-        description: "Конец эпизода смеха в секундах"
+        data_type: float
+        description: "Laughter episode end in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: duration_seconds
-        description: "Длительность эпизода смеха"
+        data_type: float
+        description: "Laughter episode duration"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: avg_confidence
-        description: "Средняя уверенность классификатора смеха по эпизоду"
+        data_type: float
+        description: "Average laughter classifier confidence for the episode"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: max_confidence
-        description: "Максимальная уверенность классификатора смеха по эпизоду"
+        data_type: float
+        description: "Maximum laughter classifier confidence for the episode"
         tests:
           - not_null
         constraints:
           - type: not_null
   - name: core_chapters
-    description: "Главы видео с привязкой к подкатегориям контента"
+    description: "Video chapters linked to content subcategories"
+    config:
+      contract:
+        enforced: true
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [video_id, start_segment_id, end_segment_id]
@@ -275,7 +327,8 @@ models:
         to_columns: [video_id, segment_id]
     columns:
       - name: video_id
-        description: "Внешний ключ на core_videos"
+        data_type: text
+        description: "Foreign key to core_videos"
         tests:
           - not_null
           - relationships:
@@ -288,20 +341,22 @@ models:
             to: ref('core_videos')
             to_columns: [video_id]
       - name: subcategory_id
-        description: "Внешний ключ на standup_core.core_subcategories"
+        data_type: smallint
+        description: "Foreign key to standup_core.core_subcategories"
         tests:
           - not_null
           - relationships:
               arguments:
-                to: source('standup_core', 'core_subcategories')
+                to: ref('core_subcategories')
                 field: subcategory_id
         constraints:
           - type: not_null
           - type: foreign_key
-            to: source('standup_core', 'core_subcategories')
+            to: ref('core_subcategories')
             to_columns: [subcategory_id]
       - name: start_segment_id
-        description: "Идентификатор сегмента начала главы"
+        data_type: smallint
+        description: "Start segment identifier"
         tests:
           - not_null
           - relationships:
@@ -311,7 +366,8 @@ models:
         constraints:
           - type: not_null
       - name: end_segment_id
-        description: "Идентификатор сегмента окончания главы"
+        data_type: smallint
+        description: "End segment identifier"
         tests:
           - not_null
           - relationships:
@@ -321,50 +377,61 @@ models:
         constraints:
           - type: not_null
   - name: core_categories
-    description: "Справочник основных категорий контента"
+    description: "Main content category dimension"
+    config:
+      contract:
+        enforced: true
     columns:
       - name: category_id
-        description: "Идентификатор категории, первичный ключ"
+        data_type: smallint
+        description: "Category identifier, primary key"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: main_category
-        description: "Название основной категории контента"
+        data_type: text
+        description: "Main content category name"
         tests:
           - not_null
           - unique
         constraints:
           - type: not_null
   - name: core_subcategories
-    description: "Справочник подкатегорий контента с привязкой к категориям"
+    config:
+      contract:
+        enforced: true
+    description: "Content subcategory reference linked to categories"
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [category_id, subcategory]
     columns:
       - name: subcategory_id
-        description: "Идентификатор подкатегории, первичный ключ"
+        data_type: smallint
+        description: "Subcategory identifier, primary key"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: category_id
-        description: "Ссылка на core_categories"
+        data_type: smallint
+        description: "Reference to core_categories"
         tests:
           - not_null
           - relationships:
               arguments:
-                to: source('standup_core', 'core_categories')
+                to: ref('core_categories')
                 field: category_id
         constraints:
           - type: not_null
           - type: foreign_key
-            to: source('standup_core', 'core_categories')
+            to: ref('core_categories')
             to_columns: [category_id]
       - name: subcategory
-        description: "Название подкатегории контента"
+        data_type: text
+        description: "Content subcategory name"
         tests:
           - not_null
         constraints:

@@ -9,9 +9,9 @@ select distinct
     current_timestamp as created_at
 from {{ ref("stg_videos_base") }} as stg_v
 where
-    is_valid is true and
+    is_valid is true
     {% if is_incremental() %}
-        not exists (
+        and not exists (
             select 1
             from {{ this }} as existing
             where existing.channel_id = stg_v.channel_id

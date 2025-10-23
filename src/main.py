@@ -3,8 +3,6 @@ import logging
 import re
 import subprocess
 import sys
-
-# import time
 from datetime import date
 from typing import Any, Callable
 
@@ -80,6 +78,7 @@ def update_video_metadata(
     elif (
         not video_row.meta_updated_at or video_row.meta_updated_at.date() < date.today()
     ):
+        logging.info("Starting video metadata update")
         if update_field_if_missing(
             video_row,
             repository,
@@ -89,7 +88,6 @@ def update_video_metadata(
             force_update=True,
         ):
             updated = True
-        # time.sleep(1)
     return updated
 
 
@@ -270,13 +268,11 @@ def run_dbt_pipeline() -> None:
         logging.info("DBT tests completed successfully")
         return
 
-    # Фильтрация и логирование только блоков с ошибками
     if test_result.stdout:
         pattern = re.compile(r"(Failure in test.*?(?:\n\s*\n|$))", re.DOTALL)
         error_blocks = pattern.findall(test_result.stdout)
         if error_blocks:
             for block in error_blocks:
-                # Логируем каждую строку блока с уровнем ERROR
                 for line in block.strip().splitlines():
                     logging.error(line)
         else:
@@ -309,7 +305,10 @@ def process_single_video(
         if not video_from_db:
             return False
 
-        if video_from_db.process_status != "finished":
+        if (
+            video_from_db.process_status != "finished"
+            or video_from_db.meta_updated_at.date() < date.today()
+        ):
             logging.info("<<" + "-" * 40)
             logging.info("Starting processing for - %s", video_from_db.video_title)
 

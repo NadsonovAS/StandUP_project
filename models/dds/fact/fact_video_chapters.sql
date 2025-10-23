@@ -24,7 +24,7 @@ with chapters as (
         round((tr2.end_s - tr1.start_s)::numeric, 2) as duration
     from
         {{ ref("core_chapters") }} as ch
-        join {{ source('standup_core', 'core_subcategories') }} as sub
+        join {{ ref('core_subcategories') }} as sub
         on
             ch.subcategory_id = sub.subcategory_id
         join {{ ref("core_transcript_segments") }} as tr1

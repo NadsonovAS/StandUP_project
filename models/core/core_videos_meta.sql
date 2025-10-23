@@ -11,9 +11,9 @@ select
     stg_v.comment_count
 from {{ ref("stg_videos_base") }} as stg_v
 where
-    stg_v.is_valid is true and
+    stg_v.is_valid is true
     {% if is_incremental() %}
-        not exists (
+        and not exists (
             select 1
             from {{ this }} as existing
             where

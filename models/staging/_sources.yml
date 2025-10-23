@@ -4,68 +4,37 @@ sources:
     schema: standup_raw
     tables:
       - name: process_video
-        description: "Исходная таблица с результатами пайплайна обработки YouTube видео"
+        description: "Raw table with results of the YouTube processing pipeline"
         columns:
           - name: video_id
-            description: "Идентификатор YouTube видео из источника"
+            description: "YouTube video identifier from the source"
             constraints:
               - type: primary_key
           - name: channel_id
-            description: "Идентификатор YouTube канала из источника"
+            description: "YouTube channel identifier from the source"
           - name: channel_name
-            description: "Название YouTube канала из источника"
+            description: "YouTube channel name from the source"
           - name: playlist_id
-            description: "Идентификатор YouTube плейлиста из источника"
+            description: "YouTube playlist identifier from the source"
           - name: playlist_title
-            description: "Название YouTube плейлиста из источника"
+            description: "YouTube playlist name from the source"
           - name: video_title
-            description: "Название YouTube видео из источника"
+            description: "YouTube video title from the source"
           - name: video_url
-            description: "URL видео на YouTube"
+            description: "YouTube video URL"
           - name: video_meta_json
-            description: "JSON с метаданными видео"
+            description: "JSON with video metadata"
           - name: transcribe_json
-            description: "JSON с результатами транскрибации"
+            description: "JSON with transcription results"
           - name: llm_chapter_json
-            description: "JSON с главами, сгенерированными LLM"
+            description: "JSON with LLM-generated chapters"
           - name: llm_classifier_json
-            description: "JSON с классификацией глав от LLM"
+            description: "JSON with LLM chapter classification"
           - name: sound_classifier_json
-            description: "JSON с результатами работы аудио-классификатора"
+            description: "JSON with audio classifier output"
           - name: laugh_events_json
-            description: "JSON с эпизодами смеха, агрегированными из sound_classifier_json"
+            description: "JSON with laughter episodes aggregated from sound_classifier_json"
           - name: process_status
-            description: "Технический статус обработки видео в пайплайне"
+            description: "Technical processing status in the pipeline"
           - name: meta_updated_at
-            description: "Метка последнего обновления метаданных в источнике"
-  - name: standup_core
-    schema: standup_core
-    tables:
-      - name: core_categories
-        description: "Справочник основных категорий контента"
-        columns:
-          - name: category_id
-            description: "Идентификатор категории"
-            constraints:
-              - type: primary_key
-          - name: main_category
-            description: "Название категории"
-            constraints:
-              - type: not_null
-      - name: core_subcategories
-        description: "Справочник подкатегорий контента"
-        columns:
-          - name: subcategory_id
-            description: "Идентификатор подкатегории"
-            constraints:
-              - type: primary_key
-          - name: subcategory
-            description: "Название подкатегории"
-            constraints:
-              - type: not_null
-          - name: category_id
-            description: "Внешний ключ на standup_core.core_categories"
-            constraints:
-              - type: foreign_key
-                to: source('standup_core', 'core_categories')
-                to_columns: [category_id]
+            description: "Source metadata last update timestamp"

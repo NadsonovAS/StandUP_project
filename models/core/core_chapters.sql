@@ -22,7 +22,7 @@ inner join stg_classifications as stg_cl
     on
         stg_ch.video_id = stg_cl.video_id
         and stg_ch.start_segment_id = stg_cl.start_segment_id
-inner join {{ source('standup_core', 'core_subcategories') }} as sub
+inner join {{ ref('core_subcategories') }} as sub
     on
         stg_cl.subcategory = sub.subcategory
 {% if is_incremental() %}

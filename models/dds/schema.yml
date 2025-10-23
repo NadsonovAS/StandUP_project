@@ -2,17 +2,17 @@ version: 2
 
 models:
   - name: dim_date
-    description: "Календарный справочник для аналитических витрин StandUp DWH"
+    description: "Calendar dimension for StandUp DWH analytics marts"
     columns:
       - name: date_id
-        description: "Суррогатный идентификатор даты в формате YYYYMMDD"
+        description: "Surrogate date identifier in YYYYMMDD format"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: date
-        description: "Календарная дата"
+        description: "Calendar date"
         tests:
           - not_null
           - unique
@@ -20,85 +20,85 @@ models:
           - type: not_null
           - type: unique
       - name: year
-        description: "Год соответствующей даты"
+        description: "Year of the date"
       - name: quarter
-        description: "Квартал соответствующей даты (1-4)"
+        description: "Quarter of the date (1-4)"
       - name: month
-        description: "Номер месяца"
+        description: "Month number"
       - name: month_name
-        description: "Название месяца"
+        description: "Month name"
       - name: week_of_year
-        description: "Номер недели в году"
+        description: "Week number within the year"
       - name: day_of_week
-        description: "Порядковый номер дня недели в ISO-формате (1 - понедельник)"
+        description: "ISO day of week number (1 = Monday)"
       - name: day_name
-        description: "Название дня недели"
+        description: "Day of week name"
       - name: is_weekend
-        description: "Флаг выходного дня"
+        description: "Weekend flag"
 
   - name: dim_channels
-    description: "Справочник YouTube каналов"
+    description: "YouTube channel dimension"
     columns:
       - name: channel_id
-        description: "Первичный ключ канала (YouTube id)"
+        description: "Channel primary key (YouTube id)"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: channel_name
-        description: "Наименование канала"
+        description: "Channel name"
         tests:
           - not_null
         constraints:
           - type: not_null
 
   - name: dim_playlists
-    description: "Справочник YouTube плейлистов"
+    description: "YouTube playlist dimension"
     columns:
       - name: playlist_id
-        description: "Первичный ключ плейлиста (YouTube id)"
+        description: "Playlist primary key (YouTube id)"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: playlist_title
-        description: "Наименование плейлиста"
+        description: "Playlist title"
         tests:
           - not_null
         constraints:
           - type: not_null
 
   - name: dim_videos
-    description: "Справочник видеороликов"
+    description: "Video dimension"
     columns:
       - name: video_id
-        description: "Первичный ключ видеоролика (YouTube id)"
+        description: "Video primary key (YouTube id)"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: video_title
-        description: "Наименование видеоролика"
+        description: "Video title"
         tests:
           - not_null
         constraints:
           - type: not_null
 
   - name: dim_category
-    description: "Справочник основных категорий контента"
+    description: "Main content category dimension"
     columns:
       - name: category_id
-        description: "Первичный ключ категории"
+        description: "Category primary key"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: main_category
-        description: "Наименование категории"
+        description: "Category name"
         tests:
           - not_null
           - unique
@@ -107,17 +107,17 @@ models:
           - type: unique
 
   - name: dim_subcategory
-    description: "Справочник подкатегорий контента"
+    description: "Content subcategory dimension"
     columns:
       - name: subcategory_id
-        description: "Первичный ключ подкатегории"
+        description: "Subcategory primary key"
         tests:
           - not_null
           - unique
         constraints:
           - type: primary_key
       - name: subcategory
-        description: "Наименование подкатегории"
+        description: "Subcategory name"
         tests:
           - not_null
           - unique
@@ -126,7 +126,7 @@ models:
           - type: unique
 
   - name: fact_video_chapters
-    description: "Факт-таблица эпизодов видео с детализацией по главам и доле смеха"
+    description: "Fact table of video chapters with laughter share metrics"
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [video_id, subcategory_id, start_s]
@@ -135,7 +135,7 @@ models:
         columns: [video_id, subcategory_id, start_s]
     columns:
       - name: video_id
-        description: "Внешний ключ на dim_videos"
+        description: "Foreign key to dim_videos"
         tests:
           - not_null
           - relationships:
@@ -148,7 +148,7 @@ models:
             to: ref('dim_videos')
             to_columns: [video_id]
       - name: date_id
-        description: "Дата загрузки видео, внешний ключ на dim_date"
+        description: "Video load date, foreign key to dim_date"
         tests:
           - not_null
           - relationships:
@@ -161,7 +161,7 @@ models:
             to: ref('dim_date')
             to_columns: [date_id]
       - name: channel_id
-        description: "Внешний ключ на dim_channels"
+        description: "Foreign key to dim_channels"
         tests:
           - not_null
           - relationships:
@@ -174,7 +174,7 @@ models:
             to: ref('dim_channels')
             to_columns: [channel_id]
       - name: playlist_id
-        description: "Внешний ключ на dim_playlists"
+        description: "Foreign key to dim_playlists"
         tests:
           - not_null
           - relationships:
@@ -187,7 +187,7 @@ models:
             to: ref('dim_playlists')
             to_columns: [playlist_id]
       - name: subcategory_id
-        description: "Внешний ключ на dim_subcategory"
+        description: "Foreign key to dim_subcategory"
         tests:
           - not_null
           - relationships:
@@ -200,7 +200,7 @@ models:
             to: ref('dim_subcategory')
             to_columns: [subcategory_id]
       - name: category_id
-        description: "Внешний ключ на dim_category"
+        description: "Foreign key to dim_category"
         tests:
           - not_null
           - relationships:
@@ -213,28 +213,28 @@ models:
             to: ref('dim_category')
             to_columns: [category_id]
       - name: start_s
-        description: "Начало главы в секундах"
+        description: "Chapter start in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: end_s
-        description: "Окончание главы в секундах"
+        description: "Chapter end in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: duration
-        description: "Длительность главы в секундах"
+        description: "Chapter duration in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: laughter_percent
-        description: "Доля времени главы, в течение которого детектирован смех (в процентах)"
+        description: "Share of chapter time with detected laughter (percent)"
 
   - name: fact_video_daily_snapshot
-    description: "Факт-таблица дневных изменений метрик по видео"
+    description: "Fact table of daily metric deltas per video"
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [video_id, date_id]
@@ -243,7 +243,7 @@ models:
         columns: [video_id, date_id]
     columns:
       - name: video_id
-        description: "Внешний ключ на dim_videos"
+        description: "Foreign key to dim_videos"
         tests:
           - not_null
           - relationships:
@@ -256,7 +256,7 @@ models:
             to: ref('dim_videos')
             to_columns: [video_id]
       - name: date_id
-        description: "Дата снимка метрик, внешний ключ на dim_date"
+        description: "Metric snapshot date, foreign key to dim_date"
         tests:
           - not_null
           - relationships:
@@ -269,7 +269,7 @@ models:
             to: ref('dim_date')
             to_columns: [date_id]
       - name: channel_id
-        description: "Внешний ключ на dim_channels"
+        description: "Foreign key to dim_channels"
         tests:
           - not_null
           - relationships:
@@ -282,7 +282,7 @@ models:
             to: ref('dim_channels')
             to_columns: [channel_id]
       - name: playlist_id
-        description: "Внешний ключ на dim_playlists"
+        description: "Foreign key to dim_playlists"
         tests:
           - not_null
           - relationships:
@@ -295,17 +295,17 @@ models:
             to: ref('dim_playlists')
             to_columns: [playlist_id]
       - name: prev_day_view
-        description: "Изменение количества просмотров по сравнению с предыдущим днем"
+        description: "Change in views compared to the previous day"
       - name: prev_day_like
-        description: "Изменение количества лайков по сравнению с предыдущим днем"
+        description: "Change in likes compared to the previous day"
       - name: prev_day_comment
-        description: "Изменение количества комментариев по сравнению с предыдущим днем"
+        description: "Change in comments compared to the previous day"
 
   - name: fact_video_metrics
-    description: "Факт-таблица финальных метрик по видео на дату загрузки"
+    description: "Fact table of final video metrics on load date"
     columns:
       - name: video_id
-        description: "Внешний ключ на dim_videos"
+        description: "Foreign key to dim_videos"
         tests:
           - not_null
           - unique
@@ -319,7 +319,7 @@ models:
             to: ref('dim_videos')
             to_columns: [video_id]
       - name: playlist_id
-        description: "Внешний ключ на dim_playlists"
+        description: "Foreign key to dim_playlists"
         tests:
           - not_null
           - relationships:
@@ -332,7 +332,7 @@ models:
             to: ref('dim_playlists')
             to_columns: [playlist_id]
       - name: channel_id
-        description: "Внешний ключ на dim_channels"
+        description: "Foreign key to dim_channels"
         tests:
           - not_null
           - relationships:
@@ -345,7 +345,7 @@ models:
             to: ref('dim_channels')
             to_columns: [channel_id]
       - name: date_id
-        description: "Дата загрузки видео, внешний ключ на dim_date"
+        description: "Video load date, foreign key to dim_date"
         tests:
           - not_null
           - relationships:
@@ -358,16 +358,16 @@ models:
             to: ref('dim_date')
             to_columns: [date_id]
       - name: view_count
-        description: "Актуальное количество просмотров"
+        description: "View count at load time"
       - name: like_count
-        description: "Актуальное количество лайков"
+        description: "Like count at load time"
       - name: comment_count
-        description: "Актуальное количество комментариев"
+        description: "Comment count at load time"
       - name: duration
-        description: "Продолжительность видео в секундах"
+        description: "Video duration in seconds"
         tests:
           - not_null
         constraints:
           - type: not_null
       - name: laughter_percent
-        description: "Доля продолжительности видео с детектированным смехом (в процентах)"
+        description: "Share of video duration with detected laughter (percent)"

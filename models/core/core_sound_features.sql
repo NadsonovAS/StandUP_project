@@ -13,9 +13,9 @@ select
     stg_sf.max_confidence
 from {{ ref("stg_sound_features") }} as stg_sf
 where
-    stg_sf.is_valid is TRUE and
+    stg_sf.is_valid is TRUE
     {% if is_incremental() %}
-        not exists (
+        and not exists (
             select 1
             from {{ this }} as existing
             where existing.video_id = stg_sf.video_id

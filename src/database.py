@@ -9,7 +9,7 @@ from models import ProcessVideo
 from utils import try_except_with_log
 
 
-@try_except_with_log("Connecting to Postgres")
+@try_except_with_log()
 def get_db_connection(settings: Settings | None = None) -> psycopg.Connection:
     """Establish a connection to Postgres using provided settings."""
     resolved_settings = settings or get_settings()

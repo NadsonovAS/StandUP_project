@@ -12,4 +12,4 @@
 SELECT
     subcategory_id,
     subcategory
-FROM {{ source('standup_core', 'core_subcategories') }}
+FROM {{ ref('core_subcategories') }}

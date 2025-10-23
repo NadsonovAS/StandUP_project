@@ -31,6 +31,7 @@ models:
     core:
       +schema: standup_core
       +materialized: incremental
+      +on_schema_change: append_new_columns
     dds:
       +schema: standup_dds
       dim:

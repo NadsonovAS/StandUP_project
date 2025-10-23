@@ -1,159 +1,159 @@
 version: 2
 models:
   - name: stg_videos_base
-    description: "Стейджинговая модель с метаданными видео после разворачивания JSON video_meta_json и приведения типов для Core-слоя"
+    description: "Staging model with video metadata after expanding JSON video_meta_json and casting for the Core layer"
     columns:
       - name: video_id
-        description: "Идентификатор YouTube видео"
+        description: "YouTube video identifier"
         tests:
           - not_null
           - unique
       - name: channel_id
-        description: "Идентификатор YouTube канала"
+        description: "YouTube channel identifier"
       - name: channel_name
-        description: "Название канала из первичного источника"
+        description: "Channel name from the primary source"
       - name: playlist_id
-        description: "Идентификатор YouTube плейлиста"
+        description: "YouTube playlist identifier"
       - name: playlist_title
-        description: "Название плейлиста"
+        description: "Playlist title"
       - name: video_title
-        description: "Название видео"
+        description: "Video title"
       - name: duration
-        description: "Продолжительность видео в секундах"
+        description: "Video duration in seconds"
       - name: view_count
-        description: "Количество просмотров на момент выгрузки"
+        description: "View count at extraction time"
       - name: like_count
-        description: "Количество лайков на момент выгрузки"
+        description: "Like count at extraction time"
       - name: comment_count
-        description: "Количество комментариев на момент выгрузки"
+        description: "Comment count at extraction time"
       - name: upload_date
-        description: "Дата публикации видео на YouTube"
+        description: "YouTube publication date"
       - name: meta_updated_at
-        description: "Метка обновления метаданных, устанавливаемая триггером (инициализирована в initdb/init_schema.sql) при изменении JSON"
+        description: "Metadata update timestamp set by a trigger (initialized in initdb/init_schema.sql) when the JSON changes"
       - name: process_status
-        description: "Технический статус обработки видео"
+        description: "Technical processing status"
       - name: is_valid
-        description: "Признак валидности строки после проверок пайплайна"
+        description: "Row validity flag after pipeline checks"
 
   - name: stg_transcripts
-    description: "Стейджинговая модель сегментов транскрипции после разворачивания JSON transcribe_json"
+    description: "Staging model of transcript segments after expanding JSON transcribe_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, segment_id]
+          combination_of_columns: [ video_id, segment_id ]
     columns:
       - name: video_id
-        description: "Идентификатор YouTube видео"
+        description: "YouTube video identifier"
         tests:
           - not_null
       - name: segment_id
-        description: "Порядковый номер сегмента транскрипции внутри видео"
+        description: "Transcript segment index within the video"
         tests:
           - not_null
       - name: segment_text
-        description: "Текст сегмента транскрипции"
+        description: "Transcript segment text"
         tests:
           - not_null
       - name: start_s
-        description: "Момент начала сегмента в секундах"
+        description: "Segment start in seconds"
         tests:
           - not_null
       - name: end_s
-        description: "Момент окончания сегмента в секундах"
+        description: "Segment end in seconds"
         tests:
           - not_null
       - name: is_valid
-        description: "Признак валидности строки после проверок пайплайна"
+        description: "Row validity flag after pipeline checks"
 
   - name: stg_sound_features
-    description: "Стейджинговая модель эпизодов смеха после разворачивания JSON laugh_events_json"
+    description: "Staging model of laughter episodes after expanding JSON laugh_events_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, sequence]
+          combination_of_columns: [ video_id, sequence ]
     columns:
       - name: video_id
-        description: "Идентификатор YouTube видео"
+        description: "YouTube video identifier"
         tests:
           - not_null
       - name: sequence
-        description: "Счетчик эпизодов со смехом"
+        description: "Laughter episode counter"
         tests:
           - not_null
       - name: points
-        description: "Количество точек детектора, сформировавших эпизод"
+        description: "Number of detector points forming the episode"
         tests:
           - not_null
       - name: start_seconds
-        description: "Начало эпизода смеха в секундах"
+        description: "Laughter episode start in seconds"
         tests:
           - not_null
       - name: end_seconds
-        description: "Конец эпизода смеха в секундах"
+        description: "Laughter episode end in seconds"
         tests:
           - not_null
       - name: duration_seconds
-        description: "Длительность эпизода смеха"
+        description: "Laughter episode duration"
         tests:
           - not_null
       - name: avg_confidence
-        description: "Средняя уверенность модели детекции смеха в рамках эпизода"
+        description: "Average confidence of the laughter detection model within the episode"
       - name: max_confidence
-        description: "Максимальная уверенность модели детекции смеха в рамках эпизода"
+        description: "Maximum confidence of the laughter detection model within the episode"
       - name: is_valid
-        description: "Признак валидности строки после проверок пайплайна"
+        description: "Row validity flag after pipeline checks"
 
   - name: stg_chapters
-    description: "Стейджинговая модель глав видео после разворачивания JSON llm_chapter_json"
+    description: "Staging model of video chapters after expanding JSON llm_chapter_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, start_segment_id, end_segment_id]
+          combination_of_columns: [ video_id, start_segment_id, end_segment_id ]
     columns:
       - name: video_id
-        description: "Идентификатор YouTube видео"
+        description: "YouTube video identifier"
         tests:
           - not_null
       - name: start_segment_id
-        description: "Идентификатор сегмента начала главы"
+        description: "Start segment identifier"
         tests:
           - not_null
       - name: end_segment_id
-        description: "Идентификатор сегмента окончания главы"
+        description: "End segment identifier"
         tests:
           - not_null
       - name: chapter_theme
-        description: "Название главы, сгенерированное LLM"
+        description: "LLM-generated chapter title"
         tests:
           - not_null
       - name: chapter_summary
-        description: "Краткое описание главы, сгенерированное LLM"
+        description: "LLM-generated chapter summary"
         tests:
           - not_null
       - name: is_valid
-        description: "Признак валидности строки после проверок пайплайна"
+        description: "Row validity flag after pipeline checks"
   - name: stg_classifications
-    description: "Стейджинговая модель классификаций глав после разворачивания JSON llm_classifier_json"
+    description: "Staging model of chapter classifications after expanding JSON llm_classifier_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, start_segment_id]
+          combination_of_columns: [ video_id, start_segment_id ]
     columns:
       - name: video_id
-        description: "Идентификатор YouTube видео"
+        description: "YouTube video identifier"
         tests:
           - not_null
       - name: start_segment_id
-        description: "Идентификатор сегмента начала главы"
+        description: "Start segment identifier"
         tests:
           - not_null
       - name: reason
-        description: "Пояснение LLM к выбранной классификации"
+        description: "LLM explanation for the chosen classification"
         tests:
           - not_null
       - name: subcategory
-        description: "Подкатегория контента, выбранная LLM"
+        description: "Content subcategory chosen by the LLM"
         tests:
           - not_null
       - name: main_category
-        description: "Основная категория контента, выбранная LLM"
+        description: "Main content category chosen by the LLM"
         tests:
           - not_null
       - name: is_valid
-        description: "Признак валидности строки после проверок пайплайна"
+        description: "Row validity flag after pipeline checks"

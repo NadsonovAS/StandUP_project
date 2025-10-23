@@ -12,4 +12,4 @@
 SELECT
     category_id,
     main_category
-FROM {{ source('standup_core', 'core_categories') }}
+FROM {{ ref('core_categories') }}

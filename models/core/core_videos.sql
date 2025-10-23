@@ -1,6 +1,6 @@
 {{ config (
     materialized='incremental',
-    unique_key='video_id'
+    unique_key='video_id',
 ) }}
 
 select
@@ -13,9 +13,9 @@ select
     current_timestamp as created_at
 from {{ ref("stg_videos_base") }} as stg_v
 where
-    stg_v.is_valid is true and
+    stg_v.is_valid is true
     {% if is_incremental() %}
-        not exists (
+        and not exists (
             select 1
             from {{ this }} as existing
             where existing.video_id = stg_v.video_id

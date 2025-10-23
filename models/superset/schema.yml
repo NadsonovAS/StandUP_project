@@ -2,151 +2,151 @@ version: 2
 
 models:
   - name: chapters_metrics
-    description: "Прослоечная витрина с метриками по главам видео и календарными измерениями"
+    description: "Intermediate mart with video chapter metrics and calendar dimensions"
     columns:
       - name: main_category
-        description: "Основная категория контента"
+        description: "Main content category"
         tests:
           - not_null
       - name: subcategory
-        description: "Подкатегория контента"
+        description: "Content subcategory"
         tests:
           - not_null
       - name: video_title
-        description: "Название видео"
+        description: "Video title"
         tests:
           - not_null
       - name: channel_name
-        description: "Наименование канала"
+        description: "Channel name"
         tests:
           - not_null
       - name: playlist_title
-        description: "Наименование плейлиста"
+        description: "Playlist title"
       - name: duration
-        description: "Длительность главы в секундах"
+        description: "Chapter duration in seconds"
       - name: laughter_percent
-        description: "Доля смеха в рамках главы (процент от длительности)"
+        description: "Share of laughter within the chapter (percent of duration)"
       - name: date
-        description: "Календарная дата"
+        description: "Calendar date"
         tests:
           - not_null
       - name: year
-        description: "Год календарной даты"
+        description: "Calendar year"
       - name: quarter
-        description: "Квартал календарной даты (1-4)"
+        description: "Calendar quarter (1-4)"
       - name: month
-        description: "Номер месяца"
+        description: "Month number"
       - name: month_name
-        description: "Название месяца"
+        description: "Month name"
       - name: week_of_year
-        description: "Номер недели в году"
+        description: "Week number within the year"
       - name: day_of_week
-        description: "Порядковый номер дня недели по ISO"
+        description: "ISO day of week number"
       - name: day_name
-        description: "Название дня недели"
+        description: "Day of week name"
       - name: is_weekend
-        description: "Флаг выходного дня"
+        description: "Weekend flag"
 
   - name: video_metrics
-    description: "Маркетинговая витрина итоговых метрик по видео с признаками классификации"
+    description: "Marketing mart of final video metrics with classification attributes"
     columns:
       - name: channel_name
-        description: "Наименование канала"
+        description: "Channel name"
         tests:
           - not_null
       - name: playlist_title
-        description: "Наименование плейлиста"
+        description: "Playlist title"
       - name: video_title
-        description: "Название видео"
+        description: "Video title"
         tests:
           - not_null
       - name: subcategory
-        description: "Подкатегория контента"
+        description: "Content subcategory"
         tests:
           - not_null
       - name: main_category
-        description: "Основная категория контента"
+        description: "Main content category"
       - name: view_count
-        description: "Количество просмотров на момент последней фиксации"
+        description: "View count at the latest snapshot"
       - name: laughter_percent
-        description: "Доля продолжительности видео, в течение которой зафиксирован смех"
+        description: "Share of video duration with recorded laughter"
       - name: like_count
-        description: "Количество лайков на момент последней фиксации"
+        description: "Like count at the latest snapshot"
       - name: comment_count
-        description: "Количество комментариев на момент последней фиксации"
+        description: "Comment count at the latest snapshot"
       - name: duration
-        description: "Продолжительность видео в секундах"
+        description: "Video duration in seconds"
       - name: duration_hms
-        description: "Продолжительность видео в формате HH:MM:SS"
+        description: "Video duration in HH:MM:SS format"
       - name: date
-        description: "Дата загрузки видео"
+        description: "Video upload date"
         tests:
           - not_null
       - name: year
-        description: "Год загрузки видео"
+        description: "Video upload year"
       - name: quarter
-        description: "Квартал загрузки видео (1-4)"
+        description: "Video upload quarter (1-4)"
       - name: month
-        description: "Номер месяца загрузки"
+        description: "Upload month number"
       - name: month_name
-        description: "Название месяца загрузки"
+        description: "Upload month name"
       - name: week_of_year
-        description: "Номер недели загрузки"
+        description: "Upload week number"
       - name: day_of_week
-        description: "Порядковый номер дня недели загрузки по ISO"
+        description: "ISO day of week number for the upload"
       - name: day_name
-        description: "Название дня недели загрузки"
+        description: "Upload day of week name"
       - name: is_weekend
-        description: "Флаг, указывающий на загрузку видео в выходной"
+        description: "Flag indicating the video was uploaded on a weekend"
 
   - name: video_daily_snapshot
-    description: "Витрина ежедневных изменений просмотров, лайков и комментариев по видео"
+    description: "Daily change mart for views, likes, and comments per video"
     columns:
       - name: video_title
-        description: "Название видео"
+        description: "Video title"
         tests:
           - not_null
       - name: channel_name
-        description: "Наименование канала"
+        description: "Channel name"
         tests:
           - not_null
       - name: playlist_title
-        description: "Наименование плейлиста"
+        description: "Playlist title"
       - name: prev_day_view
-        description: "Изменение просмотров относительно предыдущего дня"
+        description: "Change in views vs. previous day"
       - name: prev_day_like
-        description: "Изменение лайков относительно предыдущего дня"
+        description: "Change in likes vs. previous day"
       - name: prev_day_comment
-        description: "Изменение количества комментариев относительно предыдущего дня"
+        description: "Change in comments vs. previous day"
       - name: date_id
-        description: "Дата снимка в формате surrogate key YYYYMMDD"
+        description: "Snapshot date as surrogate key YYYYMMDD"
         tests:
           - not_null
       - name: date
-        description: "Календарная дата снимка"
+        description: "Snapshot calendar date"
       - name: year
-        description: "Год календарной даты"
+        description: "Calendar year"
       - name: quarter
-        description: "Квартал календарной даты (1-4)"
+        description: "Calendar quarter (1-4)"
       - name: month
-        description: "Номер месяца"
+        description: "Month number"
       - name: month_name
-        description: "Название месяца"
+        description: "Month name"
       - name: week_of_year
-        description: "Номер недели в году"
+        description: "Week number within the year"
       - name: day_of_week
-        description: "Порядковый номер дня недели по ISO"
+        description: "ISO day of week number"
       - name: day_name
-        description: "Название дня недели"
+        description: "Day of week name"
       - name: is_weekend
-        description: "Флаг выходного дня"
+        description: "Weekend flag"
 
   - name: dwh_statistics
-    description: "Сводный отчет с агрегированными счетчиками по витринам DWH"
+    description: "Summary report with aggregated counters across DWH marts"
     columns:
       - name: label
-        description: "Наименование показателя"
+        description: "Metric label"
         tests:
           - not_null
       - name: total
-        description: "Значение показателя"
+        description: "Metric value"
