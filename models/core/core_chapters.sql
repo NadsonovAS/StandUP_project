@@ -1,5 +1,5 @@
 {{ config (
-    materialized='incremental',
+    unique_key=['video_id', 'start_segment_id', 'end_segment_id']
 ) }}
 
 with stg_classifications as (
@@ -16,6 +16,7 @@ select
     stg_ch.video_id,
     stg_ch.start_segment_id,
     stg_ch.end_segment_id,
+    stg_ch.chapter_summary,
     sub.subcategory_id
 from {{ ref("stg_chapters") }} as stg_ch
 inner join stg_classifications as stg_cl

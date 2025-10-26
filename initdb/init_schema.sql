@@ -2,11 +2,11 @@
 -- 1) Create DWH schemas
 CREATE SCHEMA IF NOT EXISTS standup_raw;
 
-CREATE SCHEMA IF NOT EXISTS standup_core;
+-- CREATE SCHEMA IF NOT EXISTS standup_core;
 
-CREATE SCHEMA IF NOT EXISTS standup_dds;
+-- CREATE SCHEMA IF NOT EXISTS standup_marts;
 
-CREATE SCHEMA IF NOT EXISTS superset;
+-- CREATE SCHEMA IF NOT EXISTS superset;
 
 -- 2) Create Raw Table
 CREATE TABLE IF NOT EXISTS standup_raw.process_video (
@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     created_at TIMESTAMPTZ DEFAULT now(),
     meta_updated_at TIMESTAMPTZ
 );
+
 -- 3) Create funcation
 CREATE OR REPLACE FUNCTION update_timestamp_on_meta_change()
 RETURNS TRIGGER AS $$

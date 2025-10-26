@@ -1,0 +1,36 @@
+version: 2
+
+seeds:
+  - name: dim_date
+    description: "Calendar dimension for StandUp DWH analytics marts"
+    columns:
+      - name: date_id
+        description: "Surrogate date identifier in YYYYMMDD format"
+        data_type: int
+      - name: date
+        description: "Calendar date"
+        data_type: date
+      - name: year
+        description: "Year of the date"
+        data_type: int
+      - name: quarter
+        description: "Quarter of the date (1-4)"
+        data_type: int
+      - name: month
+        description: "Month number"
+        data_type: int
+      - name: month_name
+        description: "Month name"
+        data_type: text
+      - name: week_of_year
+        description: "Week number within the year"
+        data_type: int
+      - name: day_of_week
+        description: "ISO day of week number (1 = Monday)"
+        data_type: int
+      - name: day_name
+        description: "Day of week name"
+        data_type: text
+      - name: is_weekend
+        description: "Weekend flag"
+        data_type: boolean

@@ -1,5 +1,4 @@
 {{ config(
-    materialized='incremental',
     unique_key='channel_id'
 ) }}
 

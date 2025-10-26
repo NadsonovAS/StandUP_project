@@ -4,313 +4,193 @@ models:
     config:
       contract:
         enforced: true
+    constraints:
+      - type: primary_key
+        columns: [channel_id]
+      - type: not_null
+        columns: [channel_name, created_at]
     description: "Core layer YouTube channel dimension"
     columns:
       - name: channel_id
         data_type: text
         description: "Natural channel identifier (YouTube id) used as the primary key"
-        tests:
-          - not_null
-          - unique
-        constraints:
-          - type: primary_key
       - name: channel_name
         data_type: text
         description: "Channel name"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: created_at
         data_type: TIMESTAMPTZ
         description: "DWH load timestamp"
-        tests:
-          - not_null
   - name: core_playlists
     config:
       contract:
         enforced: true
+    constraints:
+      - type: primary_key
+        columns: [playlist_id]
+      - type: not_null
+        columns: [playlist_title, created_at]
     description: "Core layer YouTube playlist dimension"
     columns:
       - name: playlist_id
         data_type: text
         description: "Natural playlist identifier (YouTube id) used as the primary key"
-        tests:
-          - not_null
-          - unique
-        constraints:
-          - type: primary_key
       - name: playlist_title
         data_type: text
         description: "Playlist title"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: created_at
         data_type: TIMESTAMPTZ
         description: "DWH load timestamp"
-        tests:
-          - not_null
   - name: core_videos
     config:
       contract:
         enforced: true
+    constraints:
+      - type: primary_key
+        columns: [video_id]
+      - type: foreign_key
+        columns: [channel_id]
+        to: ref('core_channels')
+        to_columns: [channel_id]
+      - type: foreign_key
+        columns: [playlist_id]
+        to: ref('core_playlists')
+        to_columns: [playlist_id]
+      - type: not_null
+        columns: [channel_id, playlist_id, video_title, duration, upload_date, created_at]
     description: "Video table with primary attributes"
     columns:
       - name: video_id
         data_type: text
         description: "Natural video identifier (YouTube id) used as the primary key"
-        tests:
-          - not_null
-          - unique
-        constraints:
-          - type: primary_key
       - name: channel_id
         data_type: text
         description: "Foreign key to core_channels"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_channels')
-                field: channel_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_channels')
-            to_columns: [channel_id]
       - name: video_title
         data_type: text
         description: "Video title"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: duration
         data_type: smallint
         description: "Video duration in seconds"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: playlist_id
         data_type: text
         description: "Foreign key to core_playlists"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_playlists')
-                field: playlist_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_playlists')
-            to_columns: [playlist_id]
       - name: upload_date
         data_type: date
         description: "YouTube publication date"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: created_at
         data_type: TIMESTAMPTZ
         description: "DWH load timestamp"
-        tests:
-          - not_null
   - name: core_videos_meta
     config:
       contract:
         enforced: true
     description: "Daily snapshots of YouTube metrics per video"
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, snapshot_date]
     constraints:
       - type: primary_key
         columns: [video_id, snapshot_date]
+      - type: foreign_key
+        columns: [video_id]
+        to: ref('core_videos')
+        to_columns: [video_id]
+      - type: not_null
+        columns: [video_id]
     columns:
       - name: video_id
         data_type: text
         description: "Foreign key to core_videos"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_videos')
-                field: video_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_videos')
-            to_columns: [video_id]
       - name: snapshot_date
         data_type: date
         description: "Metric snapshot date"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: view_count
         data_type: int
         description: "View count on the snapshot date"
         tests:
           - not_null
-        constraints:
-          - type: not_null
       - name: like_count
         data_type: int
         description: "Like count on the snapshot date"
         tests:
           - not_null
-        constraints:
-          - type: not_null
       - name: comment_count
         data_type: int
         description: "Comment count on the snapshot date"
         tests:
           - not_null
-        constraints:
-          - type: not_null
   - name: core_transcript_segments
     config:
       contract:
         enforced: true
     description: "Transcription segments normalized for the Core layer"
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, segment_id]
     constraints:
       - type: primary_key
         columns: [video_id, segment_id]
+      - type: foreign_key
+        columns: [video_id]
+        to: ref('core_videos')
+        to_columns: [video_id]
+      - type: not_null
+        columns: [start_s, end_s, segment_text]
     columns:
       - name: video_id
         data_type: text
         description: "Foreign key to core_videos"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_videos')
-                field: video_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_videos')
-            to_columns: [video_id]
       - name: segment_id
         data_type: smallint
         description: "Transcript segment index within the video"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: start_s
         data_type: float
         description: "Segment start in seconds"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: end_s
         data_type: float
         description: "Segment end in seconds"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: segment_text
         data_type: text
         description: "Segment transcription text"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
   - name: core_sound_features
     config:
       contract:
         enforced: true
     description: "Detected laughter episodes per video"
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, sequence]
     constraints:
       - type: primary_key
         columns: [video_id, sequence]
+      - type: foreign_key
+        columns: [video_id]
+        to: ref('core_videos')
+        to_columns: [video_id]
+      - type: not_null
+        columns: [points, start_seconds, end_seconds, duration_seconds, avg_confidence, max_confidence]
     columns:
       - name: video_id
         data_type: text
         description: "Foreign key to core_videos"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_videos')
-                field: video_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_videos')
-            to_columns: [video_id]
       - name: sequence
         data_type: smallint
         description: "Laughter episode sequence within the video"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: points
         data_type: smallint
         description: "Number of detector points forming the episode"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: start_seconds
         data_type: float
         description: "Laughter episode start in seconds"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: end_seconds
         data_type: float
         description: "Laughter episode end in seconds"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: duration_seconds
         data_type: float
         description: "Laughter episode duration"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: avg_confidence
         data_type: float
         description: "Average laughter classifier confidence for the episode"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
       - name: max_confidence
         data_type: float
         description: "Maximum laughter classifier confidence for the episode"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null
   - name: core_chapters
     description: "Video chapters linked to content subcategories"
     config:
       contract:
         enforced: true
     tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [video_id, start_segment_id, end_segment_id]
       - dbt_utils.equal_rowcount:
           arguments:
             compare_model: ref('stg_chapters')
@@ -325,114 +205,66 @@ models:
         columns: [video_id, end_segment_id]
         to: ref('core_transcript_segments')
         to_columns: [video_id, segment_id]
+      - type: foreign_key
+        columns: [subcategory_id]
+        to: ref('core_subcategories')
+        to_columns: [subcategory_id]
+      - type: not_null
+        columns: [subcategory_id, start_segment_id, end_segment_id]
     columns:
       - name: video_id
         data_type: text
         description: "Foreign key to core_videos"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_videos')
-                field: video_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_videos')
-            to_columns: [video_id]
       - name: subcategory_id
-        data_type: smallint
         description: "Foreign key to standup_core.core_subcategories"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_subcategories')
-                field: subcategory_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_subcategories')
-            to_columns: [subcategory_id]
+        data_type: smallint
       - name: start_segment_id
         data_type: smallint
         description: "Start segment identifier"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_transcript_segments')
-                field: segment_id
-        constraints:
-          - type: not_null
       - name: end_segment_id
         data_type: smallint
         description: "End segment identifier"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_transcript_segments')
-                field: segment_id
-        constraints:
-          - type: not_null
+      - name: chapter_summary
+        data_type: text
+        description: "LLM-generated chapter summary"
   - name: core_categories
     description: "Main content category dimension"
     config:
       contract:
         enforced: true
+    constraints:
+      - type: primary_key
+        columns: [category_id]
+      - type: not_null
+        columns: [main_category]
     columns:
       - name: category_id
         data_type: smallint
         description: "Category identifier, primary key"
-        tests:
-          - not_null
-          - unique
-        constraints:
-          - type: primary_key
       - name: main_category
         data_type: text
         description: "Main content category name"
-        tests:
-          - not_null
-          - unique
-        constraints:
-          - type: not_null
   - name: core_subcategories
+    description: "Content subcategory reference linked to categories"
     config:
       contract:
         enforced: true
-    description: "Content subcategory reference linked to categories"
-    tests:
-      - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [category_id, subcategory]
+    constraints:
+      - type: primary_key
+        columns: [subcategory_id]
+      - type: foreign_key
+        columns: [category_id]
+        to: ref('core_categories')
+        to_columns: [category_id]
+      - type: not_null
+        columns: [category_id, subcategory]
     columns:
       - name: subcategory_id
         data_type: smallint
         description: "Subcategory identifier, primary key"
-        tests:
-          - not_null
-          - unique
-        constraints:
-          - type: primary_key
       - name: category_id
         data_type: smallint
         description: "Reference to core_categories"
-        tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('core_categories')
-                field: category_id
-        constraints:
-          - type: not_null
-          - type: foreign_key
-            to: ref('core_categories')
-            to_columns: [category_id]
       - name: subcategory
         data_type: text
         description: "Content subcategory name"
-        tests:
-          - not_null
-        constraints:
-          - type: not_null

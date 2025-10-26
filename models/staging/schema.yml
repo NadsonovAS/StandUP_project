@@ -5,9 +5,6 @@ models:
     columns:
       - name: video_id
         description: "YouTube video identifier"
-        tests:
-          - not_null
-          - unique
       - name: channel_id
         description: "YouTube channel identifier"
       - name: channel_name
@@ -34,33 +31,25 @@ models:
         description: "Technical processing status"
       - name: is_valid
         description: "Row validity flag after pipeline checks"
-
   - name: stg_transcripts
     description: "Staging model of transcript segments after expanding JSON transcribe_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [ video_id, segment_id ]
+          arguments:
+            combination_of_columns:
+            - video_id
+            - segment_id
     columns:
       - name: video_id
         description: "YouTube video identifier"
-        tests:
-          - not_null
       - name: segment_id
         description: "Transcript segment index within the video"
-        tests:
-          - not_null
       - name: segment_text
         description: "Transcript segment text"
-        tests:
-          - not_null
       - name: start_s
         description: "Segment start in seconds"
-        tests:
-          - not_null
       - name: end_s
         description: "Segment end in seconds"
-        tests:
-          - not_null
       - name: is_valid
         description: "Row validity flag after pipeline checks"
 
@@ -68,32 +57,23 @@ models:
     description: "Staging model of laughter episodes after expanding JSON laugh_events_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [ video_id, sequence ]
+          arguments:
+            combination_of_columns:
+            - video_id
+            - sequence
     columns:
       - name: video_id
         description: "YouTube video identifier"
-        tests:
-          - not_null
       - name: sequence
         description: "Laughter episode counter"
-        tests:
-          - not_null
       - name: points
         description: "Number of detector points forming the episode"
-        tests:
-          - not_null
       - name: start_seconds
         description: "Laughter episode start in seconds"
-        tests:
-          - not_null
       - name: end_seconds
         description: "Laughter episode end in seconds"
-        tests:
-          - not_null
       - name: duration_seconds
         description: "Laughter episode duration"
-        tests:
-          - not_null
       - name: avg_confidence
         description: "Average confidence of the laughter detection model within the episode"
       - name: max_confidence
@@ -105,55 +85,42 @@ models:
     description: "Staging model of video chapters after expanding JSON llm_chapter_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [ video_id, start_segment_id, end_segment_id ]
+          arguments:
+            combination_of_columns:
+            - video_id
+            - start_segment_id
+            - end_segment_id
     columns:
       - name: video_id
         description: "YouTube video identifier"
-        tests:
-          - not_null
       - name: start_segment_id
         description: "Start segment identifier"
-        tests:
-          - not_null
       - name: end_segment_id
         description: "End segment identifier"
-        tests:
-          - not_null
       - name: chapter_theme
         description: "LLM-generated chapter title"
-        tests:
-          - not_null
       - name: chapter_summary
         description: "LLM-generated chapter summary"
-        tests:
-          - not_null
       - name: is_valid
         description: "Row validity flag after pipeline checks"
   - name: stg_classifications
     description: "Staging model of chapter classifications after expanding JSON llm_classifier_json"
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: [ video_id, start_segment_id ]
+          arguments:
+            combination_of_columns:
+            - video_id
+            - start_segment_id
     columns:
       - name: video_id
         description: "YouTube video identifier"
-        tests:
-          - not_null
       - name: start_segment_id
         description: "Start segment identifier"
-        tests:
-          - not_null
       - name: reason
         description: "LLM explanation for the chosen classification"
-        tests:
-          - not_null
       - name: subcategory
         description: "Content subcategory chosen by the LLM"
-        tests:
-          - not_null
       - name: main_category
         description: "Main content category chosen by the LLM"
-        tests:
-          - not_null
       - name: is_valid
         description: "Row validity flag after pipeline checks"

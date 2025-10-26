@@ -14,7 +14,8 @@ WITH process_video AS (
         video_meta_json,
         process_status,
         meta_updated_at
-    FROM {{ source('standup_raw', 'process_video') }}
+    FROM {{ source('standup_raw', 'process_video') }} pr
+    WHERE pr.process_status = 'finished'
 )
 
 SELECT

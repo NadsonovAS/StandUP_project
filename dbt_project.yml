@@ -32,12 +32,18 @@ models:
       +schema: standup_core
       +materialized: incremental
       +on_schema_change: append_new_columns
-    dds:
-      +schema: standup_dds
+    marts:
+      +schema: standup_marts
       dim:
-        +materialized: table
+        +materialized: incremental
+        +on_schema_change: append_new_columns
       fact:
-        +materialized: table
+        +materialized: incremental
+        +on_schema_change: append_new_columns
     superset:
       +schema: superset
       +materialized: view
+
+seeds:
+  standup_project:
+    +schema: standup_marts

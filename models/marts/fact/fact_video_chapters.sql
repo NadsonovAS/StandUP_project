@@ -1,17 +1,5 @@
 {{ config(
-    schema='standup_dds',
-    materialized='table',
-    unique_key=['video_id', 'subcategory_id', 'start_s'],
-    post_hook=[
-      "ALTER TABLE {{ this }} ADD CONSTRAINT fk_video 
-       FOREIGN KEY (video_id) REFERENCES {{ ref('dim_videos') }} (video_id)",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT fk_category
-       FOREIGN KEY (category_id) REFERENCES {{ ref('dim_category') }} (category_id)",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT fk_subcategory
-       FOREIGN KEY (subcategory_id) REFERENCES {{ ref('dim_subcategory') }} (subcategory_id)",
-      "ALTER TABLE {{ this }} ADD CONSTRAINT fk_date
-       FOREIGN KEY (date_id) REFERENCES {{ ref('dim_date') }} (date_id)"
-    ]
+    unique_key=['video_id', 'subcategory_id', 'start_s']
 ) }}
 
 with chapters as (

@@ -1,5 +1,5 @@
 {{ config (
-    materialized='incremental',
+    unique_key=['video_id', 'segment_id']
 ) }}
 
 select
