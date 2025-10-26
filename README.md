@@ -8,10 +8,11 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
 
 ## Highlights
 - Automates YouTube playlist ingestion with `yt-dlp`, normalises metadata, and stores raw inputs in PostgreSQL.
+- Orchestrates playlist processing with `src/data_pipeliine.py`, resuming unfinished videos and refreshing stale metadata without repeating completed steps.
 - Caches audio artefacts in MinIO and on disk, avoiding re-downloads across pipeline runs.
 - Transcribes shows locally with the Apple Silicon–optimised `parakeet-mlx` model and detects laughter via a Swift `SoundAnalysis` binary.
 - Summarises chapters and classifies topics through the Gemini CLI, persisting structured JSON for downstream reporting.
-- Ships a dbt project that populates core analytics tables via `uv run dbt run` after each ingestion step.
+- Runs dbt incremental marts in the `standup_marts` schema and executes `dbt run`/`dbt test` automatically whenever new data lands.
 - Bundles an Apache Superset container preconfigured to the analytics schema for dashboarding at `http://localhost:8088`.
 
 ## Prerequisites
@@ -73,34 +74,39 @@ StandUP automates the ingestion and analysis of stand-up comedy playlists from Y
    Re-run this after any changes to `src/sound_classifier.swift`.
 
 ## Running the Ingestion Pipeline
-Run the end-to-end processor with any YouTube playlist URL containing a `list=` parameter:
+Register a new playlist (or resume unfinished ones) with:
 ```bash
 uv run src/main.py --new_playlist "https://www.youtube.com/watch?v=lgP8ZjQeAAY&list=PLcQngyvNgfmKSmmu9lJNoLo6K2MVfIS40"
 ```
-The pipeline will:
-- Upsert playlist entries into `standup_raw.process_video`.
-- Check MinIO for cached audio before downloading via `yt-dlp`.
-- Transcribe speech with `parakeet-mlx` and run the Swift laughter detector (`src/sound_classifier`).
-- Call Gemini twice: once for chapter summaries, once for topic classifications.
-- Mark rows as `process_status = 'finished'` when all artefacts are present.
+Omit `--new_playlist` to iterate through playlists already stored in `standup_raw.process_video`.
+
+The orchestrator in `src/data_pipeliine.py`:
+- Upserts playlist entries and refreshes per-video metadata daily when necessary.
+- Downloads audio only when transcripts or laughter features are missing, then runs transcription and the Swift laughter detector.
+- Calls Gemini for summaries and classifications once transcripts are available, storing structured JSON payloads.
+- Marks rows as `process_status = 'finished'` when all artefacts are present so downstream models can filter on completed videos.
+- Triggers `src/dbt_run.py` to execute `uv run dbt run` followed by `uv run dbt test` whenever any video was updated.
 
 ## Analytics with dbt
 Build analytics layers once ingestion finishes:
 ```bash
 uv run dbt build
 ```
-Key models include:
-- `staging/stg_process_video.sql`: exposes raw JSON fields with typed columns.
-- `core/*`: normalises transcripts, chapters, laughter scores, and classifications.
-- `dds/dim/dim_category.sql`: surfaces comedian and show categories for slicing downstream facts.
-- `dds/fact/fact_video_metrics.sql`: combines engagement metrics with laughter coverage for dashboards.
+This command seeds the calendar dimension, materialises incremental models, and runs tests.
+
+Key artefacts include:
+- `models/staging/stg_videos_base.sql`: filters the raw table to videos whose `process_status = 'finished'`.
+- `models/core/*`: normalises transcripts, chapters, laughter scores, classifications, and lookup tables with enforced contracts and constraints.
+- `models/marts/dim/*.sql`: incremental dimensions mapped to the `standup_marts` schema and backed by the same unique keys as the core layer.
+- `models/marts/fact/*.sql`: incremental fact tables for chapters, daily metrics, and snapshot metrics that depend on `dim_date` and other dimensions.
+- `seeds/dim_date.csv`: a 10-year calendar used to join upload and snapshot dates across facts (updated automatically via `dbt build`, or with `uv run dbt seed` if run standalone).
 
 ### Orchestrating dbt from Python
-`main.py` shells out to `uv run dbt run` after each successfully processed video, so analytics tables stay in sync with new raw data. Trigger the same command manually when needed:
+`main.py` delegates to `src/dbt_run.py`, which runs `uv run dbt run` followed by `uv run dbt test` whenever at least one video changes. Trigger the same commands manually when needed:
 
 ## Visualising in Superset
 - Visit `http://localhost:8088` (default credentials `admin` / `admin` unless overridden in `.env`).
-- Explore datasets under the `standup_dds` schema, starting with `fact_video_metrics` for laughter and engagement trends.
+- Explore datasets under the `standup_marts` schema, starting with `fact_video_metrics` for laughter and engagement trends.
 - Build or import dashboards; Superset runs alongside PostgreSQL in Docker Compose so no extra connection steps are required.
 
 
@@ -109,7 +115,8 @@ Key models include:
 StandUP_project
 ├── src/
 │   ├── config.py             # Application settings loaded via config.Settings
-│   ├── main.py               # End-to-end playlist processor
+│   ├── main.py               # CLI entry point that delegates to run_pipeline()
+│   ├── data_pipeliine.py     # Orchestrates playlist ingestion and per-video processing
 │   ├── youtube_downloader.py # yt-dlp wrapper with MinIO caching helpers
 │   ├── transcribe.py         # Parakeet transcription wrapper
 │   ├── sound_classifier.py   # Python client that wraps the Swift binary at src/sound_classifier
@@ -118,17 +125,18 @@ StandUP_project
 │   ├── llm.py                # Gemini CLI prompts and client helpers
 │   ├── database.py           # Psycopg repository for standup_raw.process_video
 │   ├── models.py             # Pydantic models for pipeline entities
+│   ├── dbt_run.py            # Helper that executes dbt run/test with structured logging
 │   └── utils.py              # Shared logging utilities and cache cleanup
 ├── analyses/                # dbt analysis queries for ad hoc exploration
 ├── macros/                  # dbt macros shared across models
 ├── models/                  # dbt models (staging, core, marts)
-├── seeds/                   # dbt seed data for reference tables
+├── seeds/                   # dbt seed data (dim_date calendar)
 ├── snapshots/               # dbt snapshots for slowly changing data
 ├── dbt_project.yml          # dbt project definition
 ├── docker/
 │   └── superset/            # Superset deployment assets
 ├── initdb/
-│   └── init_schema.sql      # Database bootstrap schema for raw/core layers
+│   └── init_schema.sql      # Database bootstrap for the raw ingest table
 ├── docker-compose.yml       # Local PostgreSQL, MinIO, Superset stack
 ├── pyproject.toml           # Python project configuration
 ├── .env                     # MinIO/PostgreSQL Configuration (ignored)
@@ -142,7 +150,7 @@ StandUP_project
 - Log via the standard library `logging` module—`main.py` configures default formatting.
 
 ## Database & Storage
-- `initdb/init_schema.sql` mirrors the structure expected by the pipeline and dbt models; update it alongside any schema changes.
+- `initdb/init_schema.sql` provisions the raw schema and table; dbt is responsible for creating the `standup_core` and `standup_marts` objects during materialisation.
 - MinIO bucket defaults to `standup-project` with audio stored under `data/audio/<title>.opus`.
 - Processed transcripts, chapters, classifications, and laughter scores are intermediate JSON blobs which dbt flattens into core tables.
 

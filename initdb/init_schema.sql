@@ -2,12 +2,6 @@
 -- 1) Create DWH schemas
 CREATE SCHEMA IF NOT EXISTS standup_raw;
 
--- CREATE SCHEMA IF NOT EXISTS standup_core;
-
--- CREATE SCHEMA IF NOT EXISTS standup_marts;
-
--- CREATE SCHEMA IF NOT EXISTS superset;
-
 -- 2) Create Raw Table
 CREATE TABLE IF NOT EXISTS standup_raw.process_video (
     channel_id TEXT,
